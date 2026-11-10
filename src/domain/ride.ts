@@ -29,7 +29,7 @@ export interface RideTransition {
 }
 
 const terminal = new Set<RideStatus>([
-  'completed', 'cancelled', 'expired', 'no_driver_found',
+  'completed', 'cancelled', 'expired',
 ])
 
 const allowed: Record<RideStatus, Partial<Record<RideActor, RideStatus[]>>> = {
@@ -43,7 +43,7 @@ const allowed: Record<RideStatus, Partial<Record<RideActor, RideStatus[]>>> = {
   completed: {},
   cancelled: {},
   expired: {},
-  no_driver_found: {},
+  no_driver_found: { system: ['offered', 'expired'], passenger: ['cancelled'], admin: ['cancelled'] },
 }
 
 export function canTransition(transition: RideTransition): boolean {
