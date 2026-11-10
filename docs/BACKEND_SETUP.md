@@ -23,7 +23,7 @@ supabase link --project-ref YOUR_TEST_PROJECT_REF
 supabase db push
 ```
 
-The repository currently contains migrations `202611100001` through `202611100018`. They install PostGIS and pgcrypto in the `extensions` schema, create RLS-protected tables, ride commands, dispatch, driver onboarding, service-area pricing, tracking, admin workflows, safety reporting, post-trip ratings, and offer-decline/driver-location lifecycle guardrails.
+The repository currently contains migrations `202611100001` through `202611100019`. They install PostGIS and pgcrypto in the `extensions` schema, create RLS-protected tables, ride commands, dispatch, driver onboarding, service-area pricing, tracking, admin workflows, safety reporting, post-trip ratings, and offer-decline/driver-location lifecycle guardrails.
 
 Run the database test suite locally before linking any real project:
 
