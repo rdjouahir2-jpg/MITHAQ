@@ -1,0 +1,12 @@
+{
+  "name": "MITHAQ — تنقّل بثقة",
+  "short_name": "MITHAQ",
+  "description": "نموذج أولي لمنصة تنقل ذكية في الجزائر",
+  "lang": "ar",
+  "dir": "rtl",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f4f7f5",
+  "theme_color": "#10251f",
+  "icons": []
+}
