@@ -1,85 +1,489 @@
-import { useState } from 'react'
-import { ArrowLeftRight, CarFront, Check, CircleHelp, Clock3, MapPin, Menu, Navigation, ShieldCheck, Wallet, X } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import type { User } from '@supabase/supabase-js'
+import {
+  ArrowLeftRight, CarFront, CheckCircle2, CircleHelp, Clock3, LogOut,
+  MapPin, Navigation, RefreshCw, ShieldCheck, UserRound, Wallet,
+} from 'lucide-react'
+import MapPicker, { type GeoPoint } from './components/MapPicker'
+import { isSupabaseConfigured, supabase } from './lib/supabase'
+import { createFareQuote, recordDriverLocation, requestRide, setDriverAvailability } from './lib/rideApi'
 
-type Mode = 'passenger' | 'driver' | 'admin'
-type RideStatus = 'idle' | 'searching' | 'accepted' | 'arrived' | 'started' | 'completed' | 'cancelled'
+type Profile = { id: string; display_name: string; account_status: string }
+type DriverProfile = { id: string; onboarding_status: string; availability_status: string }
+type Ride = {
+  id: string
+  pickup_label: string
+  destination_label: string
+  category: string
+  status: string
+  quoted_amount_minor: number
+  currency_code: string
+  requested_at: string
+  driver_id: string | null
+}
+type Offer = {
+  offer_id: string
+  ride_id: string
+  pickup_label: string
+  destination_label: string
+  pickup_latitude: number
+  pickup_longitude: number
+  category: string
+  proposed_amount_minor: number
+  currency_code: string
+  expires_at: string
+}
+type AdminAccount = { user_id: string; display_name: string; created_at: string }
+type AdminDriver = {
+  driver_id: string; user_id: string; display_name: string; account_status: string
+  onboarding_status: string; vehicle_id: string | null; vehicle_make: string | null
+  vehicle_model: string | null; vehicle_year: number | null; vehicle_color: string | null
+  seat_capacity: number | null; vehicle_status: string | null
+}
+type Tracking = {
+  ride_id: string; ride_status: string; pickup_latitude: number; pickup_longitude: number
+  destination_latitude: number; destination_longitude: number
+  driver_latitude: number | null; driver_longitude: number | null
+}
 
-const steps: { key: RideStatus; label: string }[] = [
-  { key: 'searching', label: 'نبحث عن سائق' },
-  { key: 'accepted', label: 'تم قبول الرحلة' },
-  { key: 'arrived', label: 'السائق وصل' },
-  { key: 'started', label: 'الرحلة جارية' },
-  { key: 'completed', label: 'اكتملت الرحلة' },
-]
+const statusNames: Record<string, string> = {
+  requested: 'تم إرسال الطلب', offered: 'نبحث عن سائق', accepted: 'قبل السائق الرحلة',
+  driver_arriving: 'السائق في الطريق إليك', arrived: 'السائق وصل',
+  boarded: 'تم تأكيد الصعود', in_progress: 'الرحلة جارية',
+  completed: 'اكتملت الرحلة', cancelled: 'أُلغيت الرحلة',
+  expired: 'انتهت صلاحية الطلب', no_driver_found: 'لم نعثر على سائق بعد',
+}
+const categoryNames: Record<string, string> = { economy: 'اقتصادية', comfort: 'مريحة', family: 'عائلية' }
+const activeStatuses = ['accepted', 'driver_arriving', 'arrived', 'boarded', 'in_progress']
+const money = (minor: number, currency = 'DZD') =>
+  new Intl.NumberFormat('ar-DZ', { style: 'currency', currency, maximumFractionDigits: 2 }).format(minor / 100)
+const time = (value: string) => new Date(value).toLocaleString('ar-DZ', { dateStyle: 'short', timeStyle: 'short' })
 
 export default function App() {
-  const [mode, setMode] = useState<Mode>('passenger')
-  const [from, setFrom] = useState('وسط المدينة')
-  const [to, setTo] = useState('الجامعة')
-  const [category, setCategory] = useState('اقتصادية')
-  const [status, setStatus] = useState<RideStatus>('idle')
+  const [user, setUser] = useState<User | null>(null)
+  const [profile, setProfile] = useState<Profile | null>(null)
+  const [roles, setRoles] = useState<string[]>([])
+  const [driverProfile, setDriverProfile] = useState<DriverProfile | null>(null)
+  const [passengerRides, setPassengerRides] = useState<Ride[]>([])
+  const [driverRides, setDriverRides] = useState<Ride[]>([])
+  const [offers, setOffers] = useState<Offer[]>([])
+  const [accounts, setAccounts] = useState<AdminAccount[]>([])
+  const [drivers, setDrivers] = useState<AdminDriver[]>([])
+  const [tracking, setTracking] = useState<Tracking | null>(null)
+  const [screen, setScreen] = useState<'passenger' | 'driver' | 'admin'>('passenger')
+  const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [displayName, setDisplayName] = useState('')
+  const [pickup, setPickup] = useState<GeoPoint | null>(null)
+  const [destination, setDestination] = useState<GeoPoint | null>(null)
+  const [pickupLabel, setPickupLabel] = useState('')
+  const [destinationLabel, setDestinationLabel] = useState('')
+  const [selection, setSelection] = useState<'pickup' | 'destination'>('pickup')
+  const [category, setCategory] = useState<'economy' | 'comfort' | 'family'>('economy')
+  const [quote, setQuote] = useState<Awaited<ReturnType<typeof createFareQuote>> | null>(null)
+  const [driverOnline, setDriverOnline] = useState(false)
+  const [vehicleMake, setVehicleMake] = useState('')
+  const [vehicleModel, setVehicleModel] = useState('')
+  const [vehicleYear, setVehicleYear] = useState(String(new Date().getFullYear() - 5))
+  const [vehicleColor, setVehicleColor] = useState('')
+  const [seatCapacity, setSeatCapacity] = useState('5')
+  const [boardingPin, setBoardingPin] = useState('')
+  const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState('')
-  const [menuOpen, setMenuOpen] = useState(false)
-  const [online, setOnline] = useState(false)
+  const [error, setError] = useState('')
 
-  const reset = () => { setStatus('idle'); setNotice('') }
-  const progress = steps.findIndex(s => s.key === status)
+  const passengerRide = useMemo(
+    () => passengerRides.find(ride => !['completed', 'cancelled', 'expired'].includes(ride.status)) ?? passengerRides[0] ?? null,
+    [passengerRides],
+  )
+  const driverRide = useMemo(
+    () => driverRides.find(ride => activeStatuses.includes(ride.status)) ?? null,
+    [driverRides],
+  )
+
+  const refreshData = useCallback(async (userId: string) => {
+    if (!supabase) return
+    const [profileResult, roleResult, ridesResult, driverResult] = await Promise.all([
+      supabase.from('profiles').select('id,display_name,account_status').eq('id', userId).maybeSingle(),
+      supabase.from('user_roles').select('role').eq('user_id', userId),
+      supabase.from('rides').select('id,pickup_label,destination_label,category,status,quoted_amount_minor,currency_code,requested_at,driver_id').eq('passenger_id', userId).order('requested_at', { ascending: false }).limit(20),
+      supabase.from('driver_profiles').select('id,onboarding_status,availability_status').eq('user_id', userId).maybeSingle(),
+    ])
+    if (profileResult.error) throw profileResult.error
+    if (roleResult.error) throw roleResult.error
+    if (ridesResult.error) throw ridesResult.error
+    setProfile(profileResult.data as Profile | null)
+    const nextRoles = (roleResult.data ?? []).map(row => row.role as string)
+    setRoles(nextRoles)
+    setPassengerRides((ridesResult.data ?? []) as Ride[])
+    setDriverProfile(driverResult.data as DriverProfile | null)
+    setDriverOnline(driverResult.data?.availability_status === 'online')
+
+    if (driverResult.data) {
+      const [offersResult, driverRidesResult] = await Promise.all([
+        supabase.rpc('get_my_driver_offers'),
+        supabase.from('rides').select('id,pickup_label,destination_label,category,status,quoted_amount_minor,currency_code,requested_at,driver_id').eq('driver_id', driverResult.data.id).in('status', activeStatuses).order('requested_at', { ascending: false }).limit(5),
+      ])
+      if (offersResult.error) throw offersResult.error
+      if (driverRidesResult.error) throw driverRidesResult.error
+      setOffers((offersResult.data ?? []) as Offer[])
+      setDriverRides((driverRidesResult.data ?? []) as Ride[])
+    } else {
+      setOffers([])
+      setDriverRides([])
+    }
+
+    if (nextRoles.includes('admin')) {
+      const [accountResult, driverQueueResult] = await Promise.all([
+        supabase.rpc('admin_list_pending_accounts'),
+        supabase.rpc('admin_list_driver_applications'),
+      ])
+      if (accountResult.error) throw accountResult.error
+      if (driverQueueResult.error) throw driverQueueResult.error
+      setAccounts((accountResult.data ?? []) as AdminAccount[])
+      setDrivers((driverQueueResult.data ?? []) as AdminDriver[])
+    } else {
+      setAccounts([])
+      setDrivers([])
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!supabase) return
+    let alive = true
+    supabase.auth.getSession().then(({ data, error: sessionError }) => {
+      if (!alive) return
+      if (sessionError) setError(sessionError.message)
+      setUser(data.session?.user ?? null)
+    })
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null)
+      if (!session) {
+        setProfile(null); setRoles([]); setDriverProfile(null)
+        setPassengerRides([]); setDriverRides([]); setOffers([])
+      }
+    })
+    return () => { alive = false; authListener.subscription.unsubscribe() }
+  }, [])
+
+  useEffect(() => {
+    if (!user) return
+    setError('')
+    refreshData(user.id).catch(err => setError(err.message ?? 'تعذر تحميل بيانات الحساب.'))
+  }, [user, refreshData])
+
+  useEffect(() => {
+    if (!supabase || !user) return
+    const channel = supabase.channel(`mithaq-user-${user.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'rides', filter: `passenger_id=eq.${user.id}` }, () => {
+        refreshData(user.id).catch(err => setError(err.message))
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'driver_profiles', filter: `user_id=eq.${user.id}` }, () => {
+        refreshData(user.id).catch(err => setError(err.message))
+      })
+    if (driverProfile?.id) {
+      channel.on('postgres_changes', { event: '*', schema: 'public', table: 'ride_offers', filter: `driver_id=eq.${driverProfile.id}` }, () => {
+        refreshData(user.id).catch(err => setError(err.message))
+      })
+    }
+    channel.subscribe()
+    return () => { void supabase.removeChannel(channel) }
+  }, [user, driverProfile?.id, refreshData])
+
+  useEffect(() => {
+    if (!supabase || !user || !passengerRide || !activeStatuses.includes(passengerRide.status)) {
+      setTracking(null)
+      return
+    }
+    let mounted = true
+    const load = async () => {
+      const { data, error: trackingError } = await supabase.rpc('get_my_ride_tracking', { p_ride_id: passengerRide.id })
+      if (!mounted) return
+      if (trackingError) { setError(trackingError.message); return }
+      const row = Array.isArray(data) ? data[0] : data
+      setTracking(row as Tracking | null)
+    }
+    void load()
+    const timer = window.setInterval(() => { void load() }, 8000)
+    return () => { mounted = false; window.clearInterval(timer) }
+  }, [user, passengerRide?.id, passengerRide?.status])
+
+  useEffect(() => {
+    if (!driverOnline || !driverProfile) return
+    if (!navigator.geolocation) {
+      setError('هذا المتصفح لا يدعم تحديد الموقع؛ لا يمكن إدخالك في المطابقة.')
+      return
+    }
+    const watchId = navigator.geolocation.watchPosition(async position => {
+      if (position.coords.accuracy > 100) return
+      try {
+        await recordDriverLocation({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          accuracyM: position.coords.accuracy,
+          recordedAt: new Date(position.timestamp).toISOString(),
+        })
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'تعذر إرسال موقع السائق.')
+      }
+    }, geoError => setError(geoError.code === 1 ? 'يجب السماح بالموقع حتى تظهر لك الطلبات القريبة.' : 'تعذر تحديث موقعك.'), {
+      enableHighAccuracy: true, maximumAge: 5000, timeout: 15000,
+    })
+    return () => navigator.geolocation.clearWatch(watchId)
+  }, [driverOnline, driverProfile?.id])
+
+  const run = async (action: () => Promise<void>) => {
+    setBusy(true); setError(''); setNotice('')
+    try { await action() } catch (err) {
+      setError(err instanceof Error ? err.message : 'حدث خطأ غير متوقع.')
+    } finally { setBusy(false) }
+  }
+
+  const authenticate = () => run(async () => {
+    if (!supabase) throw new Error('إعداد الخادم غير مكتمل.')
+    if (authMode === 'signup') {
+      if (displayName.trim().length < 2) throw new Error('أدخل اسمًا من حرفين على الأقل.')
+      const { data, error: authError } = await supabase.auth.signUp({
+        email: email.trim(), password,
+        options: { data: { display_name: displayName.trim() } },
+      })
+      if (authError) throw authError
+      if (!data.session) setNotice('تم إنشاء الطلب. تحقق من بريدك الإلكتروني لتأكيد الحساب ثم سجّل الدخول.')
+      else setNotice('تم إنشاء الحساب. سيبقى قيد المراجعة إلى أن يفعّله المسؤول.')
+    } else {
+      const { error: authError } = await supabase.auth.signInWithPassword({ email: email.trim(), password })
+      if (authError) throw authError
+    }
+  })
+
+  const signOut = () => run(async () => {
+    const { error: signOutError } = await supabase!.auth.signOut()
+    if (signOutError) throw signOutError
+  })
+
+  const getQuote = () => run(async () => {
+    if (!pickup || !destination) throw new Error('حدد نقطة الانطلاق والوجهة على الخريطة أولاً.')
+    if (!pickupLabel.trim() || !destinationLabel.trim()) throw new Error('اكتب وصفًا واضحًا لنقطتي الانطلاق والوجهة.')
+    const result = await createFareQuote({
+      pickup_label: pickupLabel.trim(), destination_label: destinationLabel.trim(),
+      pickup, destination, category,
+    })
+    setQuote(result)
+    setNotice(`تم حساب السعر لمسافة ${(result.route_distance_m / 1000).toFixed(1)} كم. العرض صالح لثلاث دقائق.`)
+  })
+
+  const bookRide = () => run(async () => {
+    if (!quote) throw new Error('احسب السعر أولاً.')
+    const result = await requestRide(quote.quote_id)
+    setQuote(null)
+    setNotice(`تم إنشاء الطلب. رمز الصعود الخاص بك: ${result.boarding_pin}`)
+    await refreshData(user!.id)
+  })
+
+  const cancelRide = (rideId: string) => run(async () => {
+    const { error: rpcError } = await supabase!.rpc('advance_ride', {
+      p_ride_id: rideId, p_next_status: 'cancelled', p_boarding_pin: null,
+    })
+    if (rpcError) throw rpcError
+    await refreshData(user!.id)
+    setNotice('تم إلغاء الرحلة.')
+  })
+
+  const updateDriverRide = (ride: Ride) => run(async () => {
+    const next = ride.status === 'accepted' ? 'driver_arriving'
+      : ride.status === 'driver_arriving' ? 'arrived'
+      : ride.status === 'arrived' ? 'boarded'
+      : ride.status === 'boarded' ? 'in_progress'
+      : ride.status === 'in_progress' ? 'completed' : null
+    if (!next) return
+    if (next === 'boarded' && !/^\d{6}$/.test(boardingPin)) throw new Error('أدخل رمز الصعود المكوّن من ستة أرقام.')
+    const { error: rpcError } = await supabase!.rpc('advance_ride', {
+      p_ride_id: ride.id, p_next_status: next,
+      p_boarding_pin: next === 'boarded' ? boardingPin : null,
+    })
+    if (rpcError) throw rpcError
+    setBoardingPin('')
+    await refreshData(user!.id)
+    setNotice(`تم تحديث حالة الرحلة: ${statusNames[next]}.`)
+  })
+
+  const toggleOnline = () => run(async () => {
+    const result = await setDriverAvailability(!driverOnline)
+    setDriverOnline(result === 'online')
+    setNotice(result === 'online' ? 'أصبحت متاحًا. اسمح للموقع بالعمل لإظهارك في المطابقة.' : 'أصبحت غير متاح.')
+  })
+
+  const applyDriver = () => run(async () => {
+    const { error: applyError } = await supabase!.rpc('apply_as_driver')
+    if (applyError) throw applyError
+    await refreshData(user!.id)
+    setNotice('تم إنشاء طلب الانضمام كسائق. أضف بيانات المركبة لإرسال الملف للمراجعة.')
+  })
+
+  const submitVehicle = () => run(async () => {
+    const { error: vehicleError } = await supabase!.rpc('submit_driver_vehicle', {
+      p_make: vehicleMake, p_model: vehicleModel,
+      p_model_year: vehicleYear ? Number(vehicleYear) : null,
+      p_color: vehicleColor || null, p_seat_capacity: Number(seatCapacity),
+    })
+    if (vehicleError) throw vehicleError
+    await refreshData(user!.id)
+    setNotice('تم إرسال بيانات المركبة للمراجعة. لن تتمكن من استقبال رحلات حتى اعتماد الحساب والمركبة.')
+  })
+
+  const acceptOffer = (offerId: string) => run(async () => {
+    const { error: acceptError } = await supabase!.rpc('accept_ride_offer', { p_offer_id: offerId })
+    if (acceptError) throw acceptError
+    await refreshData(user!.id)
+    setNotice('قبلت الرحلة. اتبع مراحل الرحلة ورمز الصعود.')
+  })
+
+  const declineOffer = (offerId: string) => run(async () => {
+    const { error: declineError } = await supabase!.rpc('decline_ride_offer', { p_offer_id: offerId })
+    if (declineError) throw declineError
+    await refreshData(user!.id)
+  })
+
+  const reviewAccount = (userId: string) => run(async () => {
+    const { error: reviewError } = await supabase!.rpc('admin_set_account_status', {
+      p_user_id: userId, p_status: 'active', p_reason: 'تم التحقق اليدوي لحساب بيئة الاختبار.',
+    })
+    if (reviewError) throw reviewError
+    await refreshData(user!.id)
+    setNotice('تم تفعيل الحساب.')
+  })
+
+  const reviewVehicle = (vehicleId: string, decision: 'approved' | 'rejected') => run(async () => {
+    const { error: reviewError } = await supabase!.rpc('admin_review_vehicle', {
+      p_vehicle_id: vehicleId, p_decision: decision,
+      p_reason: decision === 'approved' ? 'تم التحقق من بيانات المركبة في بيئة الاختبار.' : 'لم تستوفِ بيانات المركبة شروط المراجعة.',
+    })
+    if (reviewError) throw reviewError
+    await refreshData(user!.id)
+  })
+
+  const reviewDriver = (driverId: string, decision: 'approved' | 'rejected') => run(async () => {
+    const { error: reviewError } = await supabase!.rpc('admin_review_driver', {
+      p_driver_id: driverId, p_decision: decision,
+      p_reason: decision === 'approved' ? 'اكتملت مراجعة ملف السائق والمركبة لبيئة الاختبار.' : 'لم يستوفِ ملف السائق شروط المراجعة.',
+    })
+    if (reviewError) throw reviewError
+    await refreshData(user!.id)
+  })
+
+  if (!isSupabaseConfigured) {
+    return <div className="auth-shell"><section className="auth-card"><Brand/><h1>الخادم لم يُربط بعد</h1><p>الواجهة جاهزة للاتصال، لكن يلزم إنشاء مشروع Supabase وإضافة عنوانه ومفتاحه العام في إعدادات البناء. لا تدخل أي كلمة مرور قبل إتمام الربط.</p><a href="https://supabase.com/dashboard" target="_blank" rel="noreferrer">فتح لوحة Supabase</a></section></div>
+  }
+
+  if (!user) {
+    return <div className="auth-shell"><section className="auth-card">
+      <Brand/><span className="section-kicker">حساب MITHAQ</span>
+      <h1>{authMode === 'signin' ? 'مرحبًا بعودتك' : 'أنشئ حسابًا جديدًا'}</h1>
+      <p>حساب الراكب والسائق مستقل. الحسابات الجديدة تحتاج تفعيل المسؤول قبل طلب الرحلات أو استقبالها.</p>
+      {authMode === 'signup' && <label className="auth-field">الاسم الكامل<input value={displayName} onChange={e => setDisplayName(e.target.value)} autoComplete="name" /></label>}
+      <label className="auth-field">البريد الإلكتروني<input type="email" value={email} onChange={e => setEmail(e.target.value)} autoComplete="email" /></label>
+      <label className="auth-field">كلمة المرور<input type="password" value={password} onChange={e => setPassword(e.target.value)} autoComplete={authMode === 'signin' ? 'current-password' : 'new-password'} minLength={8} /></label>
+      {error && <div className="alert error">{error}</div>}
+      {notice && <div className="alert success">{notice}</div>}
+      <button className="primary-btn" disabled={busy || !email.trim() || password.length < 8} onClick={authenticate}>{busy ? 'جارٍ التنفيذ…' : authMode === 'signin' ? 'تسجيل الدخول' : 'إنشاء الحساب'}</button>
+      <button className="link-button" onClick={() => {setAuthMode(authMode === 'signin' ? 'signup' : 'signin');setError('');setNotice('')}}>{authMode === 'signin' ? 'ليس لديك حساب؟ أنشئ حسابًا' : 'لديك حساب بالفعل؟ سجّل الدخول'}</button>
+    </section></div>
+  }
 
   return <div className="app-shell">
     <header className="topbar">
-      <button className="icon-btn mobile-menu" onClick={() => setMenuOpen(!menuOpen)} aria-label="القائمة"><Menu size={21}/></button>
-      <a className="brand" href="#"><span className="brand-mark">م</span><span>MITHAQ</span></a>
+      <Brand/>
       <div className="top-actions">
-        <span className="secure-label"><ShieldCheck size={15}/> تنقّل بثقة</span>
-        <button className="avatar" onClick={() => setNotice('الملف الشخصي التجريبي — لم يتم إنشاء حساب بعد')}>م</button>
+        <span className="secure-label"><ShieldCheck size={15}/> بيئة اختبار MITHAQ</span>
+        <span className="user-chip"><UserRound size={15}/>{profile?.display_name || user.email}</span>
+        <button className="icon-btn" title="تسجيل الخروج" onClick={signOut}><LogOut size={18}/></button>
       </div>
     </header>
-
     <div className="layout">
-      <aside className={menuOpen ? 'sidebar open' : 'sidebar'}>
+      <aside className="sidebar">
         <div className="side-caption">مساحة العمل</div>
-        {(['passenger','driver','admin'] as Mode[]).map(m => <button key={m} className={mode === m ? 'nav-item active' : 'nav-item'} onClick={() => { setMode(m); setMenuOpen(false); setNotice('') }}>
-          {m === 'passenger' ? <MapPin size={18}/> : m === 'driver' ? <CarFront size={18}/> : <ShieldCheck size={18}/>}
-          {m === 'passenger' ? 'اطلب رحلة' : m === 'driver' ? 'مساحة السائق' : 'الإدارة'}
-        </button>)}
-        <div className="side-bottom"><div className="help-card"><CircleHelp size={19}/><b>تحتاج مساعدة؟</b><p>هذه نسخة تجريبية. لا يوجد دعم طوارئ مباشر بعد.</p></div><small>الإصدار التجريبي 0.1</small></div>
+        <button className={screen === 'passenger' ? 'nav-item active' : 'nav-item'} onClick={() => setScreen('passenger')}><MapPin size={18}/> الراكب</button>
+        <button className={screen === 'driver' ? 'nav-item active' : 'nav-item'} onClick={() => setScreen('driver')}><CarFront size={18}/> السائق</button>
+        {roles.includes('admin') && <button className={screen === 'admin' ? 'nav-item active' : 'nav-item'} onClick={() => setScreen('admin')}><ShieldCheck size={18}/> الإدارة</button>}
+        <div className="side-bottom"><div className="help-card"><CircleHelp size={19}/><b>اختبار مغلق</b><p>لا توجد رحلات تجارية أو دعم طوارئ في هذه البيئة.</p></div><small>نسخة اختبار متصلة بالخادم</small></div>
       </aside>
-
       <main className="main">
-        <div className="welcome-row"><div><div className="eyebrow">MITHAQ · الجزائر</div><h1>{mode === 'passenger' ? 'إلى أين نذهب اليوم؟' : mode === 'driver' ? 'مساحة السائق' : 'مركز العمليات'}</h1><p>{mode === 'passenger' ? 'رحلتك تبدأ بخطوات واضحة.' : mode === 'driver' ? 'تابع حالة التوفر والطلبات التجريبية.' : 'نظرة أولية على حالة المنصة التجريبية.'}</p></div><div className="location-pill"><span className="pulse"></span> وضع تجريبي</div></div>
+        <div className="welcome-row"><div><div className="eyebrow">MITHAQ · بيئة اختبار مغلقة</div><h1>{screen === 'passenger' ? 'احجز رحلتك' : screen === 'driver' ? 'مساحة السائق' : 'مركز الإدارة'}</h1><p>{profile?.account_status === 'active' ? 'حسابك مفعّل.' : 'حسابك قيد المراجعة؛ بعض الوظائف غير متاحة بعد.'}</p></div><button className="refresh-button" onClick={() => refreshData(user.id)}><RefreshCw size={15}/> تحديث</button></div>
+        {error && <div className="alert error">{error}<button onClick={() => setError('')}>إغلاق</button></div>}
+        {notice && <div className="alert success">{notice}<button onClick={() => setNotice('')}>إغلاق</button></div>}
 
-        {notice && <div className="notice"><span>{notice}</span><button onClick={() => setNotice('')}><X size={16}/></button></div>}
-
-        {mode === 'passenger' && <div className="content-grid">
+        {screen === 'passenger' && <div className="content-grid">
           <section className="panel booking-panel">
-            <div className="panel-heading"><div><span className="section-kicker">احجز مشوارك</span><h2>حدد تفاصيل الرحلة</h2></div><span className="heading-icon"><Navigation size={20}/></span></div>
-            <div className="route-fields">
-              <label className="field"><span className="field-dot green"></span><span className="field-body"><small>نقطة الانطلاق</small><input value={from} onChange={e => setFrom(e.target.value)} placeholder="أين نلتقي؟"/></span></label>
-              <button className="swap-btn" onClick={() => {setFrom(to);setTo(from)}} aria-label="تبديل"><ArrowLeftRight size={17}/></button>
-              <label className="field"><span className="field-dot red"></span><span className="field-body"><small>الوجهة</small><input value={to} onChange={e => setTo(e.target.value)} placeholder="إلى أين؟"/></span></label>
+            <div className="panel-heading"><div><span className="section-kicker">طلب رحلة</span><h2>أين تريد الذهاب؟</h2></div><span className="heading-icon"><Navigation size={20}/></span></div>
+            {profile?.account_status !== 'active' && <div className="alert warning">حسابك غير مفعّل بعد. يمكنك إعداد الرحلة لكن لن يسمح الخادم بإنشائها.</div>}
+            <div className="selection-switch">
+              <button className={selection === 'pickup' ? 'selected' : ''} onClick={() => setSelection('pickup')}>تحديد الانطلاق</button>
+              <button className={selection === 'destination' ? 'selected' : ''} onClick={() => setSelection('destination')}>تحديد الوجهة</button>
             </div>
-            <div className="field-label">اختر فئة المركبة</div>
-            <div className="categories">{['اقتصادية','مريحة','عائلية'].map((c,i)=><button key={c} onClick={()=>setCategory(c)} className={category===c?'category selected':'category'}><CarFront size={21}/><b>{c}</b><small>{i===0?'للتنقل اليومي':i===1?'راحة إضافية':'مساحة أكبر'}</small></button>)}</div>
-            <div className="fare-box"><div><small>التسعير</small><strong>غير متاح بعد</strong><span>لن نعرض سعرًا تخمينيًا قبل ربط المسار وسياسة الأسعار الموثوقة.</span></div><div className="fare-icon"><Wallet size={22}/></div></div>
-            <button className="primary-btn" disabled={!from.trim() || !to.trim() || status !== 'idle'} onClick={()=>{setStatus('searching');setNotice('طلب تجريبي فقط — لم يتم إرسال سائق حقيقي')}}>تجربة واجهة الحجز <span>←</span></button>
-            <p className="microcopy"><ShieldCheck size={14}/> لن تتم أي عملية دفع في هذه النسخة التجريبية.</p>
+            <label className="field-label">وصف نقطة الانطلاق<input className="wide-input" value={pickupLabel} onChange={e => setPickupLabel(e.target.value)} placeholder="مثلاً: أمام الجامعة" /></label>
+            <label className="field-label">وصف الوجهة<input className="wide-input" value={destinationLabel} onChange={e => setDestinationLabel(e.target.value)} placeholder="مثلاً: وسط المدينة" /></label>
+            <div className="field-label">فئة المركبة</div>
+            <div className="categories">{(['economy','comfort','family'] as const).map(c => <button key={c} className={category === c ? 'category selected' : 'category'} onClick={() => {setCategory(c);setQuote(null)}}><CarFront size={20}/><b>{categoryNames[c]}</b></button>)}</div>
+            <div className="fare-box"><div><small>التسعير الموثوق</small><strong>{quote ? money(quote.amount_minor, quote.currency_code) : 'احسب السعر أولاً'}</strong><span>{quote ? `${(quote.route_distance_m / 1000).toFixed(1)} كم · نحو ${Math.ceil(quote.route_duration_s / 60)} دقيقة · ينتهي ${time(quote.expires_at)}` : 'يُحسب من مسار الطريق وسياسة المنطقة الفعالة'}</span></div><div className="fare-icon"><Wallet size={22}/></div></div>
+            <button className="primary-btn" disabled={busy || profile?.account_status !== 'active' || !pickup || !destination} onClick={getQuote}>حساب السعر من الطريق</button>
+            {quote && <button className="primary-btn confirm-btn" disabled={busy} onClick={bookRide}>تأكيد طلب الرحلة</button>}
+            <p className="microcopy"><ShieldCheck size={14}/> لا توجد مدفوعات إلكترونية في هذه المرحلة.</p>
+            {passengerRide && <div className="ride-summary"><span className="section-kicker">آخر رحلة</span><h3>{statusNames[passengerRide.status] ?? passengerRide.status}</h3><p>{passengerRide.pickup_label} ← {passengerRide.destination_label}</p><b>{money(passengerRide.quoted_amount_minor, passengerRide.currency_code)}</b>{!['completed','cancelled','expired'].includes(passengerRide.status) && <button className="text-button" onClick={() => cancelRide(passengerRide.id)}>إلغاء الرحلة</button>}</div>}
           </section>
-
           <section className="panel map-panel">
-            <div className="map-top"><span className="map-tag"><MapPin size={14}/> خريطة توضيحية</span><span className="map-muted">ليست GPS حقيقياً</span></div>
-            <div className="map-art"><div className="map-grid"></div><div className="road road-a"></div><div className="road road-b"></div><div className="road road-c"></div><div className="route-line"></div><div className="pin pin-start"><span></span></div><div className="pin pin-end"><span></span></div><div className="map-label label-start">{from || 'الانطلاق'}</div><div className="map-label label-end">{to || 'الوجهة'}</div><div className="map-center"><Navigation size={17}/></div></div>
-            <div className="map-footer"><div><small>المسار</small><b>{from} ← {to}</b></div><div className="duration"><Clock3 size={15}/> تقديري</div></div>
+            <div className="map-top"><span className="map-tag"><MapPin size={14}/> خريطة فعلية</span><span className="map-muted">اختر النقاط مباشرة</span></div>
+            <MapPicker pickup={pickup} destination={destination} driverLocation={tracking?.driver_latitude != null && tracking?.driver_longitude != null ? {latitude: tracking.driver_latitude, longitude: tracking.driver_longitude} : null} selection={selection} onSelect={point => {
+              if (selection === 'pickup') {setPickup(point);setPickupLabel(label => label || 'نقطة الانطلاق المحددة')}
+              else {setDestination(point);setDestinationLabel(label => label || 'الوجهة المحددة')}
+              setQuote(null)
+            }} onLocate={point => {setPickup(point);setPickupLabel('موقعي الحالي');setSelection('destination');setQuote(null)}}/>
+            {tracking && <p className="microcopy">موقع السائق يُعرض فقط أثناء الرحلة النشطة ولأطراف الرحلة.</p>}
           </section>
         </div>}
 
-        {mode === 'passenger' && status !== 'idle' && <section className="panel trip-panel"><div className="trip-head"><div><span className="section-kicker">حالة الطلب</span><h2>{steps.find(s=>s.key===status)?.label || 'الطلب ملغى'}</h2></div><span className="trip-badge">تجربة محلية</span></div><div className="progress">{steps.map((s,i)=><div className={i<=progress?'progress-step done':'progress-step'} key={s.key}><span>{i<progress?<Check size={13}/>:i+1}</span><small>{s.label}</small></div>)}</div><div className="demo-actions">{status==='searching' && <button className="primary-btn" onClick={()=>setStatus('accepted')}>محاكاة قبول سائق</button>}{status==='accepted' && <button className="primary-btn" onClick={()=>setStatus('arrived')}>محاكاة وصول السائق</button>}{status==='arrived' && <button className="primary-btn" onClick={()=>setStatus('started')}>تأكيد الصعود التجريبي</button>}{status==='started' && <button className="primary-btn" onClick={()=>setStatus('completed')}>إنهاء الرحلة التجريبية</button>}{(status==='completed'||status==='cancelled') && <button className="primary-btn" onClick={reset}>طلب رحلة جديدة</button>}<button className="text-btn" onClick={()=>setStatus('cancelled')}>إلغاء التجربة</button></div></section>}
+        {screen === 'driver' && <div className="driver-grid">
+          <section className="panel driver-status"><span className="section-kicker">ملف السائق</span><h2>{driverProfile ? driverProfile.onboarding_status === 'approved' ? 'سائق معتمد' : 'ملف قيد المراجعة' : 'انضم كسائق'}</h2>
+            {!driverProfile && <><p>ابدأ بإرسال طلب انضمام. يجب أن يكون حسابك مفعّلاً.</p><button className="primary-btn" disabled={busy || profile?.account_status !== 'active'} onClick={applyDriver}>طلب الانضمام كسائق</button></>}
+            {driverProfile && driverProfile.onboarding_status !== 'approved' && <div className="alert warning">لا يمكنك استقبال الرحلات حتى اعتماد ملف السائق والمركبة من الإدارة.</div>}
+            {driverProfile?.onboarding_status === 'approved' && <><p>حالة التوفر: {driverOnline ? 'متصل' : 'غير متصل'}</p><button className={driverOnline ? 'secondary-btn' : 'primary-btn'} disabled={busy} onClick={toggleOnline}>{driverOnline ? 'إيقاف التوفر' : 'تفعيل التوفر'}</button><p className="microcopy">عند الاتصال، يرسل هاتفك موقع GPS بدقة مناسبة للمطابقة. اسمح بإذن الموقع.</p></>}
+          </section>
+          {driverProfile && driverProfile.onboarding_status !== 'approved' && <section className="panel">
+            <span className="section-kicker">بيانات المركبة</span><h2>أضف مركبتك</h2>
+            <label className="auth-field">الشركة المصنعة<input value={vehicleMake} onChange={e => setVehicleMake(e.target.value)} placeholder="مثلاً: Hyundai"/></label>
+            <label className="auth-field">الطراز<input value={vehicleModel} onChange={e => setVehicleModel(e.target.value)} placeholder="مثلاً: i20"/></label>
+            <label className="auth-field">سنة الصنع<input type="number" value={vehicleYear} onChange={e => setVehicleYear(e.target.value)}/></label>
+            <label className="auth-field">اللون<input value={vehicleColor} onChange={e => setVehicleColor(e.target.value)}/></label>
+            <label className="auth-field">عدد المقاعد<input type="number" min="2" max="9" value={seatCapacity} onChange={e => setSeatCapacity(e.target.value)}/></label>
+            <button className="primary-btn" disabled={busy || !vehicleMake.trim() || !vehicleModel.trim()} onClick={submitVehicle}>إرسال المركبة للمراجعة</button>
+          </section>}
+          {driverRide && <section className="panel active-driver-ride"><span className="section-kicker">الرحلة النشطة</span><h2>{statusNames[driverRide.status]}</h2><p>{driverRide.pickup_label} ← {driverRide.destination_label}</p><p>الفئة: {categoryNames[driverRide.category] ?? driverRide.category}</p>
+            {driverRide.status === 'arrived' && <label className="auth-field">رمز الصعود من الراكب<input inputMode="numeric" maxLength={6} value={boardingPin} onChange={e => setBoardingPin(e.target.value.replace(/\D/g, '').slice(0,6))}/></label>}
+            <button className="primary-btn" disabled={busy || (driverRide.status === 'arrived' && boardingPin.length !== 6)} onClick={() => updateDriverRide(driverRide)}>{driverRide.status === 'accepted' ? 'بدء التوجه للراكب' : driverRide.status === 'driver_arriving' ? 'تأكيد الوصول' : driverRide.status === 'arrived' ? 'تأكيد رمز الصعود' : driverRide.status === 'boarded' ? 'بدء الرحلة' : 'إنهاء الرحلة'}</button>
+          </section>}
+          <section className="panel offer-card"><span className="section-kicker">العروض الواردة</span><h2>{offers.length} عرض متاح</h2>
+            {!offers.length && <p className="muted">ستظهر هنا الطلبات الحقيقية الموجهة إليك عندما تكون معتمداً ومتصلًا وقريبًا من نقطة الانطلاق.</p>}
+            {offers.map(offer => <div className="offer-row" key={offer.offer_id}><b>{offer.pickup_label} ← {offer.destination_label}</b><small>{categoryNames[offer.category] ?? offer.category} · {money(offer.proposed_amount_minor, offer.currency_code)}</small><small>ينتهي {time(offer.expires_at)}</small><div className="offer-buttons"><button className="primary-btn" disabled={busy} onClick={() => acceptOffer(offer.offer_id)}>قبول</button><button className="secondary-btn" disabled={busy} onClick={() => declineOffer(offer.offer_id)}>رفض</button></div></div>)}
+          </section>
+        </div>}
 
-        {mode === 'driver' && <section className="driver-grid"><div className="panel driver-status"><span className="section-kicker">حالة الحساب</span><h2>{online?'أنت متصل (تجريبي)':'أنت غير متصل'}</h2><p>فعّل التوفر لاستكشاف تجربة استقبال الطلبات.</p><button className={online?'secondary-btn':'primary-btn'} onClick={()=>setOnline(!online)}>{online?'إيقاف التوفر':'تفعيل التوفر'}</button><div className="driver-note"><ShieldCheck size={17}/> لا يمكن استقبال رحلات حقيقية قبل التحقق من السائق والمركبة.</div></div><div className="panel offer-card"><span className="section-kicker">عرض توضيحي</span><h2>طلب رحلة تجريبي</h2><div className="offer-route"><span>وسط المدينة</span><span>الجامعة</span></div><div className="offer-meta"><span><Clock3 size={15}/> مدة ومسافة غير حقيقية في هذه النسخة</span></div><p className="driver-note">لا توجد عروض فعلية أو أسعار أو مطابقة سائقين بعد.</p><button className="primary-btn" disabled={!online} onClick={()=>setNotice('تم قبول العرض في المحاكاة فقط؛ لا توجد رحلة فعلية')}>قبول الطلب التجريبي</button></div></section>}
+        {screen === 'admin' && roles.includes('admin') && <div className="admin-grid">
+          <section className="panel admin-note"><span className="section-kicker">المراجعة الإدارية</span><h2>الحسابات المعلقة ({accounts.length})</h2>
+            {!accounts.length && <p className="muted">لا توجد حسابات تنتظر التفعيل.</p>}
+            {accounts.map(account => <div className="admin-row" key={account.user_id}><div><b>{account.display_name || 'بدون اسم'}</b><small>{account.user_id}</small></div><button className="primary-btn" disabled={busy} onClick={() => reviewAccount(account.user_id)}>تفعيل</button></div>)}
+          </section>
+          <section className="panel admin-note"><span className="section-kicker">اعتماد السائقين</span><h2>طلبات السائقين ({drivers.length})</h2>
+            {!drivers.length && <p className="muted">لا توجد طلبات سائقين.</p>}
+            {drivers.map(driver => <div className="admin-row driver-review" key={driver.driver_id}><div><b>{driver.display_name || 'بدون اسم'} · {driver.onboarding_status}</b><small>{driver.vehicle_make ?? 'لا توجد مركبة'} {driver.vehicle_model ?? ''} · {driver.seat_capacity ?? '—'} مقاعد · المركبة: {driver.vehicle_status ?? 'غير مسجلة'}</small></div><div className="admin-review-actions">{driver.vehicle_id && driver.vehicle_status !== 'approved' && <button className="secondary-btn" disabled={busy} onClick={() => reviewVehicle(driver.vehicle_id!, 'approved')}>اعتماد المركبة</button>}{driver.onboarding_status !== 'approved' && <button className="primary-btn" disabled={busy || driver.vehicle_status !== 'approved'} onClick={() => reviewDriver(driver.driver_id, 'approved')}>اعتماد السائق</button>}</div></div>)}
+          </section>
+        </div>}
 
-        {mode === 'admin' && <section className="admin-grid"><div className="stat-card"><span>الرحلات الحقيقية</span><b>0</b><small>لم يتم الإطلاق</small></div><div className="stat-card"><span>السائقون المعتمدون</span><b>0</b><small>لا توجد ملفات حقيقية</small></div><div className="stat-card"><span>بلاغات السلامة</span><b>0</b><small>بيئة تجريبية</small></div><div className="panel admin-note"><ShieldCheck size={22}/><h2>لوحة إدارة أولية</h2><p>ستضاف إدارة المستخدمين والسائقين والرحلات والصلاحيات وسجل التدقيق بعد ربط قاعدة البيانات. لا توجد بيانات حقيقية في هذه النسخة.</p></div></section>}
-
-        <footer><span>© MITHAQ 2026</span><span><ShieldCheck size={13}/> بيانات تجريبية · لا رحلات أو مدفوعات حقيقية</span></footer>
+        <footer><span>© MITHAQ</span><span><ShieldCheck size={13}/> بيئة اختبار مغلقة · لا مدفوعات أو رحلات تجارية</span></footer>
       </main>
     </div>
   </div>
+}
+
+function Brand() {
+  return <a className="brand" href="#"><span className="brand-mark">م</span><span>MITHAQ</span></a>
 }
