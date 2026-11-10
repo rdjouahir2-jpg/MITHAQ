@@ -61,7 +61,14 @@ begin
   insert into public.ride_events(ride_id, actor_user_id, event_type, to_status)
   values(v_ride_id, v_user, 'ride_requested', 'requested');
 
-  return query select v_ride_id, v_pin, 'requested'::public.ride_status;
+  -- Create offers in the same database transaction. The nested dispatch routine
+  -- is server-only to clients; this function is the authorized passenger entrypoint.
+  perform public.dispatch_ride(v_ride_id, 7000, 5);
+
+  return query
+    select r.id, v_pin, r.status
+    from public.rides r
+    where r.id = v_ride_id;
 end;
 $$;
 
