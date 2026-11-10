@@ -4,42 +4,47 @@ Updated: 2026-11-10
 
 ## Implemented in repository (source committed)
 
-- [x] Responsive Arabic RTL web demonstration.
-- [x] Simulated passenger booking, driver availability, offer acceptance, and ride lifecycle.
-- [x] Initial PostgreSQL schema with RLS enabled and baseline policies.
-- [x] Typed ride-domain rules in TypeScript.
-- [x] Draft server-side ride commands with participant checks and boarding PIN validation.
-- [x] Auth bootstrap trigger and pending driver application command.
-- [x] Fare quote table design: server-written, passenger-bound, expiring, single-use quotes; client-supplied fare values removed from ride creation.
-- [x] Hardening of auth metadata handling, privileged function search paths, stale-offer behavior, and driver availability after trip completion/cancellation.
-- [x] Private driver-location table and validated location/availability RPCs.
-- [x] Server-only nearby-driver dispatch with approved vehicle checks and expiring offers.
-- [x] Cryptographic boarding PIN generation and ride-first row-lock ordering for offer acceptance.
-- [x] pgTAP security-contract test file added (not yet executed against a database).
-- [x] Authenticated fare-quote Edge Function source added with route validation, server-side pricing, short-lived quotes, and per-user rate limiting.
-- [x] Backend deployment and secrets checklist documented.
-- [x] Optional browser Supabase client and typed ride-service wrappers added; they remain unused by the current demo UI until a project is configured.
-- [x] Removed fabricated fare and driver offer amounts from the demo UI.
-- [x] GitHub Actions build and demo deployment succeeded for commit `1f1ffc5012dc65dfedea93de4a29efddc710ca23` before the two newest hardening migrations were added.
+- [x] Arabic RTL responsive web client with real Supabase email/password sign-up, sign-in, and sign-out flows.
+- [x] Passenger booking flow wired to server-generated single-use quotes and the quote-bound ride request RPC.
+- [x] Interactive MapLibre map with point selection, browser GPS, and trusted road-route geometry.
+- [x] Passenger ride history/status, participant-only tracking lookup, and cancellation workflow.
+- [x] Driver application and vehicle submission workflow.
+- [x] Driver availability and foreground GPS updates with server-side freshness/accuracy validation.
+- [x] Driver offer inbox with accept/decline and the ride lifecycle, including six-digit boarding PIN verification.
+- [x] Realtime subscriptions for passenger rides, driver offers, and driver profile changes.
+- [x] Admin bootstrap instructions and audited account/vehicle/driver approval commands.
+- [x] Admin operational view for recent rides and safety reports.
+- [x] Passenger safety-report submission and audited admin review.
+- [x] Server-side dispatch using PostGIS exact-radius distance, approved vehicle checks, fresh GPS, and no duplicate pending driver offers.
+- [x] Scheduled maintenance Edge Function source for offer expiry, redispatch retries, and expired quote cleanup.
+- [x] Service-area boundary enforcement and area-specific fare policy lookup.
+- [x] Fourteen ordered SQL migrations, Supabase local configuration, pgTAP security tests, and GitHub Actions database-test workflow.
+- [x] Deno type-check workflow for both Edge Functions.
+- [x] Dependency lockfile generation integrated into CI; lockfile commit/push must complete successfully before it is considered persisted.
+- [x] GitHub Pages build receives only public Supabase URL/anon-key repository variables; no service-role secret is required by the browser.
 
-## Not implemented or not verified
+## Not yet deployed or independently verified
 
-- [ ] Apply all migrations to a real Supabase project.
-- [ ] Verify PostGIS is installed in the `extensions` schema before applying the schema that uses geography.
-- [ ] Run SQL migrations against PostgreSQL and resolve any platform-specific issues.
-- [ ] Automated database tests: authentication, RLS isolation, concurrent offer acceptance, quote reuse/expiry, PIN failure/success, and every legal ride transition.
-- [ ] Deploy and integration-test the fare-quote Edge Function with a trusted routing endpoint and active fare policy.
-- [ ] Connect dispatch and offer expiry to a trusted Edge Function / scheduled worker.
-- [ ] Dispatch engine and driver location ingestion with freshness, radius, and eligibility checks.
-- [ ] Supabase Auth UI and real session handling.
-- [ ] Realtime passenger/driver trip updates.
-- [ ] Real map, geocoding, routing, and GPS permission flows.
-- [ ] Admin authorization, driver document review, and vehicle verification.
-- [ ] Push notifications and incident escalation.
-- [ ] Payment integration and accounting.
-- [ ] Android packaging and device testing.
-- [ ] Dependency pinning, lockfile, vulnerability audit, and final CI verification after the latest migrations.
+- [ ] Create and connect a dedicated Supabase test project.
+- [ ] Complete a full successful local database migration run and pgTAP test run after the latest migration changes.
+- [ ] Confirm PostGIS, Realtime publication, and function grants on the hosted test project.
+- [ ] Add GitHub Actions repository variables `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`.
+- [ ] Configure the test service-area polygon and its fare policy.
+- [ ] Deploy `create-fare-quote` and `dispatch-maintenance` with server-side secrets.
+- [ ] Schedule the dispatch maintenance function with a private cron secret.
+- [ ] Run end-to-end tests with two separate authenticated users and two physical phones.
+- [ ] Add stronger application-level tests for concurrent offer acceptance, quote reuse/expiry, invalid PINs, unauthorized tracking, and all state transitions.
+- [ ] Add secure driver document uploads and review for identity, driving licence, vehicle registration, and insurance.
+- [ ] Add phone verification and abuse controls appropriate to Algeria.
+- [ ] Add push notifications, robust Android background GPS, native Android packaging, and device-specific battery/permission handling.
+- [ ] Add payment/settlement only after legal and financial model validation.
+- [ ] Complete independent security review, monitoring, backup/restore, load testing, and incident response.
+- [ ] Confirm Algerian transport permissions, insurance, privacy, consumer terms, and emergency operations with qualified local sources.
 
-## Gate before any closed pilot
+## Closed-test gate
 
-Do not carry real passengers until the database and security tests pass, dispatch and location freshness are reliable, driver/vehicle approval is operational, support and emergency escalation are staffed, and local legal/insurance/privacy requirements are confirmed. A successful frontend build is not proof of backend correctness or operational readiness.
+The source code is not the same as a deployed service. Do not ask a friend to test until the hosted test project is connected, all fourteen migrations and database tests pass, both Edge Functions are deployed, the service area and test fare are configured, and the two-phone flow has passed internal checks. Keep the first trial non-commercial and do not carry paying passengers.
+
+## Production gate
+
+Do not launch publicly or carry paying passengers until driver identity/documents, vehicle eligibility, insurance, local legal permissions, privacy, safety operations, support, incident escalation, security review, monitoring, backups, and Android background-location behavior are verified.
