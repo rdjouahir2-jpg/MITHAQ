@@ -32,3 +32,5 @@ jobs:
         run: |
           deno check --config supabase/functions/deno.json supabase/functions/create-fare-quote/index.ts
           deno check --config supabase/functions/deno.json supabase/functions/dispatch-maintenance/index.ts
+      - name: Test ride-domain invariants
+        run: deno test src/domain/ride.test.ts
