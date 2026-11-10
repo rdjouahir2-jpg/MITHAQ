@@ -176,7 +176,8 @@ export default function App() {
 
   useEffect(() => {
     if (!supabase || !user) return
-    const channel = supabase.channel(`mithaq-user-${user.id}`)
+    const client = supabase
+    const channel = client.channel(`mithaq-user-${user.id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'rides', filter: `passenger_id=eq.${user.id}` }, () => {
         refreshData(user.id).catch(err => setError(err.message))
       })
@@ -189,7 +190,7 @@ export default function App() {
       })
     }
     channel.subscribe()
-    return () => { void supabase.removeChannel(channel) }
+    return () => { void client.removeChannel(channel) }
   }, [user, driverProfile?.id, refreshData])
 
   useEffect(() => {
@@ -197,9 +198,10 @@ export default function App() {
       setTracking(null)
       return
     }
+    const client = supabase
     let mounted = true
     const load = async () => {
-      const { data, error: trackingError } = await supabase.rpc('get_my_ride_tracking', { p_ride_id: passengerRide.id })
+      const { data, error: trackingError } = await client.rpc('get_my_ride_tracking', { p_ride_id: passengerRide.id })
       if (!mounted) return
       if (trackingError) { setError(trackingError.message); return }
       const row = Array.isArray(data) ? data[0] : data
