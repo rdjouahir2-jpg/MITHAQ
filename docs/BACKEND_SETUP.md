@@ -23,7 +23,7 @@ supabase link --project-ref YOUR_TEST_PROJECT_REF
 supabase db push
 ```
 
-The repository currently contains migrations `202611100001` through `202611100021`. They install PostGIS and pgcrypto in the `extensions` schema, create RLS-protected tables, ride commands, dispatch, driver onboarding, service-area pricing, tracking, admin workflows, safety reporting, post-trip ratings, and offer-decline/driver-location lifecycle guardrails.
+The repository currently contains migrations `202611100001` through `202611100022`. They install PostGIS and pgcrypto in the `extensions` schema, create RLS-protected tables, ride commands, dispatch, driver onboarding, service-area pricing, tracking, admin workflows, safety reporting, post-trip ratings, and offer-decline/driver-location lifecycle guardrails.
 
 Run the database test suite locally before linking any real project:
 
@@ -117,7 +117,7 @@ Configure these Edge Function secrets:
 
 The quote function authenticates the user, checks account standing, validates that both endpoints are in the same active service area, gets a road route, calculates the price from the area's active fare policy, validates the route geometry, and writes a short-lived single-use quote.
 
-For a tiny, non-commercial closed test only, `ROUTING_BASE_URL=https://router.project-osrm.org` can be used without an API key. The OSRM demo-server guidance limits use to reasonable non-commercial requests, says not to exceed one request per second, and provides no uptime/latency guarantee. It must not become MITHAQ's commercial routing dependency: https://github.com/Project-OSRM/osrm-backend/wiki/Demo-server. The current map style is a development-friendly OpenFreeMap style; before public launch, review tile-provider terms and choose a reliable map/routing hosting arrangement.
+For a tiny, non-commercial closed test only, `ROUTING_BASE_URL=https://router.project-osrm.org` can be used without an API key. The OSRM demo-server guidance limits use to reasonable non-commercial requests, says not to exceed one request per second, and provides no uptime/latency guarantee. MITHAQ also enforces a project-wide one-request-per-second gate in the database for this test endpoint. It must not become MITHAQ's commercial routing dependency: https://github.com/Project-OSRM/osrm-backend/wiki/Demo-server. The current map style is a development-friendly OpenFreeMap style; before public launch, review tile-provider terms and choose a reliable map/routing hosting arrangement.
 
 ## 6. Schedule dispatch maintenance
 
