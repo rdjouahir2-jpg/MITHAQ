@@ -80,7 +80,7 @@ jobs:
           rm -f "$RUNNER_TEMP/mithaq-function-secrets.env"
 
       - name: Deploy fare quote function
-        run: supabase functions deploy create-fare-quote --project-ref bzoubheoooszhzajzsur
+        run: supabase functions deploy create-fare-quote --project-ref bzoubheoooszhzajzsur --yes
 
       - name: Deploy dispatch maintenance function
-        run: supabase functions deploy dispatch-maintenance --project-ref bzoubheoooszhzajzsur --no-verify-jwt
+        run: supabase functions deploy dispatch-maintenance --project-ref bzoubheoooszhzajzsur --yes --no-verify-jwt
