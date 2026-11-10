@@ -151,12 +151,10 @@ alter table public.safety_reports enable row level security;
 alter table public.support_tickets enable row level security;
 alter table public.audit_logs enable row level security;
 
+-- Client-side profile/driver writes are intentionally disabled until controlled RPCs exist.
 create policy "profile_select_own" on public.profiles for select to authenticated using (id = auth.uid());
-create policy "profile_update_own" on public.profiles for update to authenticated using (id = auth.uid()) with check (id = auth.uid());
 create policy "roles_select_own" on public.user_roles for select to authenticated using (user_id = auth.uid());
 create policy "driver_profile_select_own" on public.driver_profiles for select to authenticated using (user_id = auth.uid());
-create policy "driver_profile_insert_own" on public.driver_profiles for insert to authenticated with check (user_id = auth.uid());
-create policy "driver_profile_update_own" on public.driver_profiles for update to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
 create policy "vehicles_select_owner" on public.vehicles for select to authenticated using (
   exists(select 1 from public.driver_profiles d where d.id = driver_id and d.user_id = auth.uid())
 );
