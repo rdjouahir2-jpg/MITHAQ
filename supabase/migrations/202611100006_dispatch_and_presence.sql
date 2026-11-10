@@ -240,3 +240,56 @@ comment on table public.driver_locations is
 'Private latest driver coordinates. Never grant client table access; use the authenticated location RPC and server-only dispatch.';
 comment on function public.dispatch_ride(uuid,integer,integer) is
 'Server-only dispatch. Matches recent accurate locations and approved drivers/vehicles; creates expiring offers transactionally.';
+
+-- Expire outstanding offers and return an unassigned ride to a retryable state.
+-- Server-only so drivers cannot manipulate another driver's offer lifecycle.
+create or replace function public.expire_ride_offers(p_ride_id uuid)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_ride public.rides%rowtype;
+  v_expired integer := 0;
+begin
+  select * into v_ride
+  from public.rides r
+  where r.id = p_ride_id
+  for update;
+
+  if not found then
+    raise exception 'ride_not_found' using errcode = 'P0002';
+  end if;
+
+  if v_ride.status <> 'offered' then
+    return 0;
+  end if;
+
+  update public.ride_offers
+    set status = 'expired', responded_at = now()
+  where ride_id = p_ride_id
+    and status = 'sent'
+    and expires_at <= now();
+
+  get diagnostics v_expired = row_count;
+
+  if not exists (
+    select 1 from public.ride_offers o
+    where o.ride_id = p_ride_id and o.status = 'sent' and o.expires_at > now()
+  ) then
+    update public.rides
+      set status = 'no_driver_found'
+    where id = p_ride_id and status = 'offered';
+
+    insert into public.ride_events(ride_id, event_type, from_status, to_status, metadata)
+    values(p_ride_id, 'dispatch_offers_expired', 'offered', 'no_driver_found',
+      jsonb_build_object('expired_count', v_expired));
+  end if;
+
+  return v_expired;
+end;
+$$;
+
+revoke all on function public.expire_ride_offers(uuid) from public, anon, authenticated;
+grant execute on function public.expire_ride_offers(uuid) to service_role;
