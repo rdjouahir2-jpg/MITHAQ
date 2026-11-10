@@ -2,7 +2,7 @@
 -- Run with: supabase test db
 begin;
 create extension if not exists pgtap with schema extensions;
-select extensions.plan(19);
+select extensions.plan(21);
 
 select extensions.has_table('public', 'driver_locations', 'driver location table exists');
 select extensions.ok(
@@ -77,6 +77,14 @@ select extensions.ok(
 select extensions.ok(
   exists (select 1 from pg_indexes where schemaname = 'public' and indexname = 'rides_one_active_per_passenger'),
   'database enforces at most one active ride per passenger'
+);
+select extensions.ok(
+  has_function_privilege('service_role', 'public.validate_route_geometry_in_area(uuid,jsonb)', 'EXECUTE'),
+  'only the trusted server role can validate complete route geometry'
+);
+select extensions.ok(
+  not has_function_privilege('authenticated', 'public.validate_route_geometry_in_area(uuid,jsonb)', 'EXECUTE'),
+  'clients cannot bypass service-area route validation'
 );
 select * from extensions.finish();
 rollback;
