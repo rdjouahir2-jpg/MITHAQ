@@ -18,6 +18,7 @@ Updated: 2026-11-10
 - [x] Mutual one-time post-trip ratings, stored through a participant-checked RPC.
 - [x] Continue driver GPS during an active trip while keeping busy drivers out of new dispatch matching.
 - [x] Maintenance handles declined as well as expired offers, then retries dispatch safely.
+- [x] Added Algeria-specific legal research and made clear that test approval is not a transport permit.
 - [x] Server-side dispatch using PostGIS exact-radius distance, approved vehicle checks, fresh GPS, and no duplicate pending driver offers.
 - [x] Scheduled maintenance Edge Function source for offer expiry, redispatch retries, and expired quote cleanup.
 - [x] Service-area boundary enforcement and area-specific fare policy lookup.
@@ -42,7 +43,7 @@ Updated: 2026-11-10
 - [ ] Add push notifications, robust Android background GPS, native Android packaging, and device-specific battery/permission handling.
 - [ ] Add payment/settlement only after legal and financial model validation.
 - [ ] Complete independent security review, monitoring, backup/restore, load testing, and incident response.
-- [ ] Confirm Algerian transport permissions, insurance, privacy, consumer terms, and emergency operations with qualified local sources.
+- [ ] Obtain written Algerian legal/transport clearance for the VTC or taxi operating model, insurance, privacy, consumer terms, and emergency operations. See `docs/ALGERIA_LEGAL_REVIEW.md`.
 
 ## Closed-test gate
 
