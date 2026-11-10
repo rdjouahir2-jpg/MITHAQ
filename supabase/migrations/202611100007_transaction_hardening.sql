@@ -44,11 +44,14 @@ begin
   );
 
   insert into public.rides (
-    passenger_id, pickup_label, destination_label, category,
+    passenger_id, pickup_label, destination_label,
+    pickup_point, destination_point, category,
     status, quoted_amount_minor, currency_code, trip_pin_hash
   ) values (
-    v_user, v_quote.pickup_label, v_quote.destination_label, v_quote.category,
-    'requested', v_quote.amount_minor, v_quote.currency_code,
+    v_user, v_quote.pickup_label, v_quote.destination_label,
+    extensions.st_setsrid(extensions.st_makepoint(v_quote.pickup_longitude, v_quote.pickup_latitude), 4326)::extensions.geography,
+    extensions.st_setsrid(extensions.st_makepoint(v_quote.destination_longitude, v_quote.destination_latitude), 4326)::extensions.geography,
+    v_quote.category, 'requested', v_quote.amount_minor, v_quote.currency_code,
     extensions.crypt(v_pin, extensions.gen_salt('bf'))
   ) returning id into v_ride_id;
 
