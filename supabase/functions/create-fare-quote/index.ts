@@ -9,7 +9,7 @@ const corsHeaders = {
 function json(status: number, body: Record<string, unknown>, origin = "*") {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...corsHeaders, "Access-Control-Allow-Origin": origin },
+    headers: { ...corsHeaders, "Access-Control-Allow-Origin": origin, "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" },
   });
 }
 
@@ -35,6 +35,10 @@ Deno.serve(async (req: Request) => {
   }
   if (req.method !== "POST") {
     return json(405, { error: "method_not_allowed" }, allowedOrigin);
+  }
+  const requestBytes = Number(req.headers.get("content-length") ?? 0);
+  if (requestBytes > 16_384) {
+    return json(413, { error: "request_too_large" }, allowedOrigin);
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
@@ -154,7 +158,16 @@ Deno.serve(async (req: Request) => {
       return json(502, { error: "routing_provider_unavailable" }, allowedOrigin);
     }
 
-    const routeData = await routeResponse.json();
+    const routeBody = await routeResponse.text();
+    if (routeBody.length > 2_000_000) {
+      return json(502, { error: "routing_response_too_large" }, allowedOrigin);
+    }
+    let routeData: any;
+    try {
+      routeData = JSON.parse(routeBody);
+    } catch {
+      return json(502, { error: "invalid_routing_response" }, allowedOrigin);
+    }
     const route = routeData?.code === "Ok" && Array.isArray(routeData.routes)
       ? routeData.routes[0]
       : null;
