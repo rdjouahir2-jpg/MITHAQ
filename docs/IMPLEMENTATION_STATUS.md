@@ -33,6 +33,7 @@ This proves deployment and CI checks. It does **not** prove the complete ride li
 - [x] Service-area boundary enforcement, area-specific fare policy, and shared routing rate gate.
 - [x] Driver location minimization and stale-location cleanup.
 - [x] Twenty-three SQL migrations and 25 pgTAP security-contract assertions passed in local Supabase CI.
+- [x] Eight deterministic ride-domain tests cover allowed/forbidden transitions, terminal states, money validation, and ride snapshot invariants; the expanded CI workflow passed.
 
 ## Remaining before a two-phone closed test
 
