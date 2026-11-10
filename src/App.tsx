@@ -374,12 +374,19 @@ export default function App() {
         throw new Error('دقة الموقع ضعيفة. انتقل إلى مكان مفتوح وحاول مجددًا.')
       }
       await setDriverAvailability(true)
-      await recordDriverLocation({
-        latitude: position.coords.latitude,
-        longitude: position.coords.longitude,
-        accuracyM: position.coords.accuracy,
-        recordedAt: new Date(position.timestamp).toISOString(),
-      })
+      try {
+        await recordDriverLocation({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          accuracyM: position.coords.accuracy,
+          recordedAt: new Date(position.timestamp).toISOString(),
+        })
+      } catch (locationError) {
+        await setDriverAvailability(false)
+        throw locationError
+      }
+      setDriverOnline(true)
+      setDriverProfile(current => current ? { ...current, availability_status: 'online' } : current)
       await refreshData(user!.id)
       setNotice('أصبحت متاحًا. سيُحدّث الهاتف موقعك أثناء بقاء التطبيق مفتوحًا.')
     } else {
