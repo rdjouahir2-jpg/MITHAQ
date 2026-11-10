@@ -12,14 +12,21 @@ Updated: 2026-11-10
 - [x] Auth bootstrap trigger and pending driver application command.
 - [x] Fare quote table design: server-written, passenger-bound, expiring, single-use quotes; client-supplied fare values removed from ride creation.
 - [x] Hardening of auth metadata handling, privileged function search paths, stale-offer behavior, and driver availability after trip completion/cancellation.
+- [x] Private driver-location table and validated location/availability RPCs.
+- [x] Server-only nearby-driver dispatch with approved vehicle checks and expiring offers.
+- [x] Cryptographic boarding PIN generation and ride-first row-lock ordering for offer acceptance.
+- [x] pgTAP security-contract test file added (not yet executed against a database).
+- [x] Removed fabricated fare and driver offer amounts from the demo UI.
 - [x] GitHub Actions build and demo deployment succeeded for commit `1f1ffc5012dc65dfedea93de4a29efddc710ca23` before the two newest hardening migrations were added.
 
 ## Not implemented or not verified
 
 - [ ] Apply all migrations to a real Supabase project.
+- [ ] Verify PostGIS is installed in the `extensions` schema before applying the schema that uses geography.
 - [ ] Run SQL migrations against PostgreSQL and resolve any platform-specific issues.
 - [ ] Automated database tests: authentication, RLS isolation, concurrent offer acceptance, quote reuse/expiry, PIN failure/success, and every legal ride transition.
 - [ ] Trusted fare-quote Edge Function with server-side route validation and active fare-policy lookup.
+- [ ] Connect dispatch and offer expiry to a trusted Edge Function / scheduled worker.
 - [ ] Dispatch engine and driver location ingestion with freshness, radius, and eligibility checks.
 - [ ] Supabase Auth UI and real session handling.
 - [ ] Realtime passenger/driver trip updates.
