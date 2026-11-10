@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { Map as MapLibreMap, Marker } from 'maplibre-gl'
+import { Map as MapLibreMap, Marker, NavigationControl } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 
 export type GeoPoint = { latitude: number; longitude: number }
@@ -32,7 +32,7 @@ export default function MapPicker({
       cooperativeGestures: true,
     })
     map.current = instance
-    instance.addControl(new (class extends (Object as any) {})() as any)
+    instance.addControl(new NavigationControl({ showCompass: false }), 'top-right')
     instance.on('click', event => {
       selectRef.current({ latitude: event.lngLat.lat, longitude: event.lngLat.lng })
     })
