@@ -182,6 +182,7 @@ export default function App() {
     })
     const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null)
+      setScreen('passenger')
       if (!session) {
         setProfile(null); setRoles([]); setDriverProfile(null)
         setPassengerRides([]); setDriverRides([]); setOffers([])
@@ -566,7 +567,7 @@ export default function App() {
           </section>
           <section className="panel admin-note"><span className="section-kicker">اعتماد السائقين</span><h2>طلبات السائقين ({drivers.length})</h2>
             {!drivers.length && <p className="muted">لا توجد طلبات سائقين.</p>}
-            {drivers.map(driver => <div className="admin-row driver-review" key={driver.driver_id}><div><b>{driver.display_name || 'بدون اسم'} · {driver.onboarding_status}</b><small>{driver.vehicle_make ?? 'لا توجد مركبة'} {driver.vehicle_model ?? ''} · {driver.seat_capacity ?? '—'} مقاعد · المركبة: {driver.vehicle_status ?? 'غير مسجلة'}</small></div><div className="admin-review-actions">{driver.vehicle_id && driver.vehicle_status !== 'approved' && <button className="secondary-btn" disabled={busy} onClick={() => reviewVehicle(driver.vehicle_id!, 'approved')}>اعتماد المركبة</button>}{driver.onboarding_status !== 'approved' && <button className="primary-btn" disabled={busy || driver.vehicle_status !== 'approved'} onClick={() => reviewDriver(driver.driver_id, 'approved')}>اعتماد السائق</button>}</div></div>)}
+            {drivers.map(driver => <div className="admin-row driver-review" key={driver.driver_id}><div><b>{driver.display_name || 'بدون اسم'} · {driver.onboarding_status}</b><small>{driver.vehicle_make ?? 'لا توجد مركبة'} {driver.vehicle_model ?? ''} · {driver.seat_capacity ?? '—'} مقاعد · المركبة: {driver.vehicle_status ?? 'غير مسجلة'}</small></div><div className="admin-review-actions">{driver.vehicle_id && driver.vehicle_status === 'pending' && <><button className="secondary-btn" disabled={busy} onClick={() => reviewVehicle(driver.vehicle_id!, 'approved')}>اعتماد المركبة</button><button className="secondary-btn" disabled={busy} onClick={() => reviewVehicle(driver.vehicle_id!, 'rejected')}>رفض المركبة</button></>}{driver.onboarding_status !== 'approved' && <><button className="primary-btn" disabled={busy || driver.vehicle_status !== 'approved' || driver.account_status !== 'active'} onClick={() => reviewDriver(driver.driver_id, 'approved')}>اعتماد السائق</button><button className="secondary-btn" disabled={busy} onClick={() => reviewDriver(driver.driver_id, 'rejected')}>رفض السائق</button></>}</div></div>)}
           </section>
         </div>}
 
