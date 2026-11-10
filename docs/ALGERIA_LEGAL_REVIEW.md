@@ -20,6 +20,10 @@ Research date: 10 November 2026. This is a product-risk note, not a legal opinio
    - https://www.commerce.gov.dz/reglementation/decret-executif-n-deg-02-448
    A VTC fare model should not simply assume that taxi tariff rules automatically apply or do not apply; this needs a legal determination for the actual operating structure.
 
+5. In August 2026, a report quoting the Gendarmerie Nationale's Tariki communication reiterated that public passenger-transport operators must hold the specific authorization from the wilaya transport directorate, and described penalties under Law 01-13 for unauthorized public passenger transport:
+   - https://elkhabar.com.dz/fr/societe/transport-public-de-personnes-la-gendarmerie-rappelle-l-obligation-de-detenir-une-autorisation-264467
+   This is a reported official reminder about public passenger transport generally; obtain a legal determination of whether and how it applies to the exact MITHAQ test and operating model.
+
 ## Product decisions taken
 
 - MITHAQ remains a closed software test, not an operating transport company.
