@@ -18,6 +18,7 @@ Updated: 2026-11-10
 - [x] pgTAP security-contract test file added (not yet executed against a database).
 - [x] Authenticated fare-quote Edge Function source added with route validation, server-side pricing, short-lived quotes, and per-user rate limiting.
 - [x] Backend deployment and secrets checklist documented.
+- [x] Optional browser Supabase client and typed ride-service wrappers added; they remain unused by the current demo UI until a project is configured.
 - [x] Removed fabricated fare and driver offer amounts from the demo UI.
 - [x] GitHub Actions build and demo deployment succeeded for commit `1f1ffc5012dc65dfedea93de4a29efddc710ca23` before the two newest hardening migrations were added.
 
