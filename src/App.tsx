@@ -36,6 +36,7 @@ type Offer = {
 type AdminAccount = { user_id: string; display_name: string; created_at: string }
 type AdminRide = { ride_id: string; passenger_name: string; driver_name: string | null; pickup_label: string; destination_label: string; ride_status: string; quoted_amount_minor: number; currency_code: string; requested_at: string; completed_at: string | null }
 type SafetyReport = { report_id: string; ride_id: string | null; reporter_name: string; category: string; severity: string; description: string; report_status: string; created_at: string }
+type RatingStatus = { has_rated: boolean; score: number | null; comment: string | null }
 type AdminDriver = {
   driver_id: string; user_id: string; display_name: string; account_status: string
   onboarding_status: string; vehicle_id: string | null; vehicle_make: string | null
@@ -75,6 +76,9 @@ export default function App() {
   const [adminRides, setAdminRides] = useState<AdminRide[]>([])
   const [safetyReports, setSafetyReports] = useState<SafetyReport[]>([])
   const [reportDescription, setReportDescription] = useState('')
+  const [ratingScore, setRatingScore] = useState(5)
+  const [ratingComment, setRatingComment] = useState('')
+  const [ratingStatus, setRatingStatus] = useState<RatingStatus | null>(null)
   const [tracking, setTracking] = useState<Tracking | null>(null)
   const [screen, setScreen] = useState<'passenger' | 'driver' | 'admin'>('passenger')
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin')
@@ -107,6 +111,11 @@ export default function App() {
     () => driverRides.find(ride => activeStatuses.includes(ride.status)) ?? null,
     [driverRides],
   )
+  const completedDriverRide = useMemo(
+    () => driverRides.find(ride => ride.status === 'completed') ?? null,
+    [driverRides],
+  )
+  const ratingRide = screen === 'driver' ? completedDriverRide : passengerRide?.status === 'completed' ? passengerRide : null
 
   const refreshData = useCallback(async (userId: string) => {
     if (!supabase) return
@@ -129,7 +138,7 @@ export default function App() {
     if (driverResult.data) {
       const [offersResult, driverRidesResult] = await Promise.all([
         supabase.rpc('get_my_driver_offers'),
-        supabase.from('rides').select('id,pickup_label,destination_label,category,status,quoted_amount_minor,currency_code,requested_at,driver_id').eq('driver_id', driverResult.data.id).in('status', activeStatuses).order('requested_at', { ascending: false }).limit(5),
+        supabase.from('rides').select('id,pickup_label,destination_label,category,status,quoted_amount_minor,currency_code,requested_at,driver_id').eq('driver_id', driverResult.data.id).in('status', [...activeStatuses, 'completed']).order('requested_at', { ascending: false }).limit(5),
       ])
       if (offersResult.error) throw offersResult.error
       if (driverRidesResult.error) throw driverRidesResult.error
@@ -224,6 +233,18 @@ export default function App() {
     const timer = window.setInterval(() => { void load() }, 8000)
     return () => { mounted = false; window.clearInterval(timer) }
   }, [user, passengerRide?.id, passengerRide?.status])
+
+  useEffect(() => {
+    if (!supabase || !user || !ratingRide) { setRatingStatus(null); return }
+    let mounted = true
+    supabase.rpc('get_my_ride_rating_status', { p_ride_id: ratingRide.id }).then(({ data, error: ratingError }) => {
+      if (!mounted) return
+      if (ratingError) { setError(ratingError.message); return }
+      const row = Array.isArray(data) ? data[0] : data
+      setRatingStatus((row as RatingStatus | null) ?? null)
+    })
+    return () => { mounted = false }
+  }, [user, ratingRide?.id, screen])
 
   useEffect(() => {
     if (!driverOnline || !driverProfile) return
@@ -361,6 +382,20 @@ export default function App() {
     await refreshData(user!.id)
   })
 
+  const submitRating = () => run(async () => {
+    if (!ratingRide) throw new Error('لا توجد رحلة مكتملة لتقييمها.')
+    const { error: ratingError } = await supabase!.rpc('submit_ride_rating', {
+      p_ride_id: ratingRide.id, p_score: ratingScore, p_comment: ratingComment.trim(),
+    })
+    if (ratingError) throw ratingError
+    setRatingComment('')
+    await refreshData(user!.id)
+    const { data } = await supabase!.rpc('get_my_ride_rating_status', { p_ride_id: ratingRide.id })
+    const row = Array.isArray(data) ? data[0] : data
+    setRatingStatus((row as RatingStatus | null) ?? null)
+    setNotice('شكرًا لك. تم حفظ تقييم الرحلة.')
+  })
+
   const submitSafetyReport = (rideId: string | null) => run(async () => {
     if (reportDescription.trim().length < 5) throw new Error('اكتب تفاصيل البلاغ (5 أحرف على الأقل).')
     const { error: reportError } = await supabase!.rpc('submit_safety_report', {
@@ -471,6 +506,7 @@ export default function App() {
               <button className="secondary-btn" disabled={busy || reportDescription.trim().length < 5} onClick={() => submitSafetyReport(passengerRide.id)}>إرسال بلاغ</button>
               <small>هذه قناة بلاغات داخلية للاختبار وليست خدمة طوارئ.</small>
             </div>}
+            {ratingRide && screen === 'passenger' && <RatingPanel ratingStatus={ratingStatus} ratingScore={ratingScore} setRatingScore={setRatingScore} ratingComment={ratingComment} setRatingComment={setRatingComment} busy={busy} submit={submitRating}/>}
             {passengerRide && <div className="ride-summary"><span className="section-kicker">آخر رحلة</span><h3>{statusNames[passengerRide.status] ?? passengerRide.status}</h3><p>{passengerRide.pickup_label} ← {passengerRide.destination_label}</p><b>{money(passengerRide.quoted_amount_minor, passengerRide.currency_code)}</b>{!['completed','cancelled','expired'].includes(passengerRide.status) && <button className="text-button" onClick={() => cancelRide(passengerRide.id)}>إلغاء الرحلة</button>}</div>}
           </section>
           <section className="panel map-panel">
@@ -499,6 +535,7 @@ export default function App() {
             <label className="auth-field">عدد المقاعد<input type="number" min="2" max="9" value={seatCapacity} onChange={e => setSeatCapacity(e.target.value)}/></label>
             <button className="primary-btn" disabled={busy || !vehicleMake.trim() || !vehicleModel.trim()} onClick={submitVehicle}>إرسال المركبة للمراجعة</button>
           </section>}
+          {ratingRide && screen === 'driver' && <RatingPanel ratingStatus={ratingStatus} ratingScore={ratingScore} setRatingScore={setRatingScore} ratingComment={ratingComment} setRatingComment={setRatingComment} busy={busy} submit={submitRating}/>}
           {driverRide && <section className="panel active-driver-ride"><span className="section-kicker">الرحلة النشطة</span><h2>{statusNames[driverRide.status]}</h2><p>{driverRide.pickup_label} ← {driverRide.destination_label}</p><p>الفئة: {categoryNames[driverRide.category] ?? driverRide.category}</p>
             {driverRide.status === 'arrived' && <label className="auth-field">رمز الصعود من الراكب<input inputMode="numeric" maxLength={6} value={boardingPin} onChange={e => setBoardingPin(e.target.value.replace(/\D/g, '').slice(0,6))}/></label>}
             <button className="primary-btn" disabled={busy || (driverRide.status === 'arrived' && boardingPin.length !== 6)} onClick={() => updateDriverRide(driverRide)}>{driverRide.status === 'accepted' ? 'بدء التوجه للراكب' : driverRide.status === 'driver_arriving' ? 'تأكيد الوصول' : driverRide.status === 'arrived' ? 'تأكيد رمز الصعود' : driverRide.status === 'boarded' ? 'بدء الرحلة' : 'إنهاء الرحلة'}</button>
@@ -531,6 +568,28 @@ export default function App() {
       </main>
     </div>
   </div>
+}
+
+
+function RatingPanel({ ratingStatus, ratingScore, setRatingScore, ratingComment, setRatingComment, busy, submit }: {
+  ratingStatus: RatingStatus | null
+  ratingScore: number
+  setRatingScore: (value: number) => void
+  ratingComment: string
+  setRatingComment: (value: string) => void
+  busy: boolean
+  submit: () => void
+}) {
+  return <section className="panel rating-panel">
+    <span className="section-kicker">تقييم الرحلة</span><h2>كيف كانت تجربتك؟</h2>
+    {ratingStatus?.has_rated
+      ? <p className="muted">تم إرسال تقييمك: {ratingStatus.score}/5. شكرًا لمساعدتنا على تحسين الخدمة.</p>
+      : <>
+        <div className="rating-choices">{[1,2,3,4,5].map(score => <button type="button" key={score} className={ratingScore === score ? 'chosen' : ''} onClick={() => setRatingScore(score)}>{score}</button>)}</div>
+        <textarea value={ratingComment} onChange={e => setRatingComment(e.target.value)} maxLength={500} placeholder="ملاحظة اختيارية" rows={2}/>
+        <button className="primary-btn" disabled={busy} onClick={submit}>إرسال التقييم</button>
+      </>}
+  </section>
 }
 
 function Brand() {
