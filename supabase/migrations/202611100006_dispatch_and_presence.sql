@@ -295,7 +295,7 @@ begin
     where id = p_ride_id and status = 'offered';
 
     insert into public.ride_events(ride_id, event_type, from_status, to_status, metadata)
-    values(p_ride_id, 'dispatch_offers_expired', 'offered', 'no_driver_found',
+    values(p_ride_id, 'dispatch_offers_exhausted', 'offered', 'no_driver_found',
       jsonb_build_object('expired_count', v_expired));
   end if;
 
