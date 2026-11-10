@@ -2,7 +2,7 @@
 -- Run with: supabase test db
 begin;
 create extension if not exists pgtap with schema extensions;
-select extensions.plan(18);
+select extensions.plan(19);
 
 select extensions.has_table('public', 'driver_locations', 'driver location table exists');
 select extensions.ok(
@@ -73,6 +73,10 @@ select extensions.ok(
 select extensions.ok(
   has_function_privilege('authenticated', 'public.get_my_driver_ride_details(integer)', 'EXECUTE'),
   'drivers can request only their assigned ride details'
+);
+select extensions.ok(
+  exists (select 1 from pg_indexes where schemaname = 'public' and indexname = 'rides_one_active_per_passenger'),
+  'database enforces at most one active ride per passenger'
 );
 select * from extensions.finish();
 rollback;
