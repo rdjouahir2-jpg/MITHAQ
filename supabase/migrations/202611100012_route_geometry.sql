@@ -70,7 +70,9 @@ $$;
 revoke all on function public.request_ride(uuid) from public, anon;
 grant execute on function public.request_ride(uuid) to authenticated;
 
-create or replace function public.get_my_ride_tracking(p_ride_id uuid)
+drop function if exists public.get_my_ride_tracking(uuid);
+
+create function public.get_my_ride_tracking(p_ride_id uuid)
 returns table (
   ride_id uuid,
   ride_status public.ride_status,
