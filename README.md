@@ -25,6 +25,9 @@ MITHAQ is being designed as a ride-hailing platform with passenger, driver, and 
 - [Roadmap](docs/ROADMAP.md)
 - [Security and privacy](docs/SECURITY_PRIVACY.md)
 - [Decision log](docs/DECISIONS.md)
+- [Competitor feature benchmark](docs/COMPETITOR_FEATURES.md)
+- [Open-source review](docs/OPEN_SOURCE_REVIEW.md)
+- [Third-party notices](THIRD_PARTY_NOTICES.md)
 
 ## Proposed initial technology direction
 
