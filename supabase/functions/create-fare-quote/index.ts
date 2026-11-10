@@ -200,7 +200,7 @@ Deno.serve(async (req: Request) => {
 
     return json(200, {
       quote_id: quote.id,
-      amount_minor: quote.amount_minor,
+      amount_minor: Number(quote.amount_minor),
       currency_code: quote.currency_code,
       route_distance_m: quote.route_distance_m,
       route_duration_s: quote.route_duration_s,
