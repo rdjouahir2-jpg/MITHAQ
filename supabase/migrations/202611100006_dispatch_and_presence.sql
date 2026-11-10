@@ -159,21 +159,13 @@ begin
     raise exception 'ride_not_found' using errcode = 'P0002';
   end if;
 
+  if v_ride.pickup_point is null then
+    raise exception 'pickup_coordinates_required' using errcode = '22023';
+  end if;
+
   if v_ride.status not in ('requested','no_driver_found') then
     raise exception 'ride_not_dispatchable' using errcode = 'P0001';
   end if;
-
-  with eligible as (
-    select
-      d.id as driver_id,
-      6371000 * acos(least(1.0, greatest(-1.0,
-        sin(radians(v_ride.pickup_point_lat_placeholder))
-      ))) as unused_distance
-    from public.driver_profiles d
-    join public.driver_locations l on l.driver_id = d.id
-    where false
-  )
-  select count(*) into v_count from eligible;
 
   -- Coordinates are extracted from the PostGIS point stored on the ride.
   -- No location is returned to the passenger or written to a client-readable table.
