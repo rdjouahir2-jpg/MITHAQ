@@ -2,7 +2,7 @@
 -- Run with: supabase test db
 begin;
 create extension if not exists pgtap with schema extensions;
-select extensions.plan(10);
+select extensions.plan(13);
 
 select extensions.has_table('public', 'driver_locations', 'driver location table exists');
 select extensions.ok(
@@ -42,5 +42,17 @@ select extensions.ok(
   'only the trusted server role can invoke dispatch'
 );
 
-select * from finish();
+select extensions.ok(
+  has_function_privilege('authenticated', 'public.get_my_ride_tracking(uuid)', 'EXECUTE'),
+  'authenticated ride participants can use the scoped tracking RPC'
+);
+select extensions.ok(
+  has_function_privilege('authenticated', 'public.admin_list_driver_applications()', 'EXECUTE'),
+  'admin application list entrypoint is callable (role check is enforced inside the function)'
+);
+select extensions.ok(
+  not has_table_privilege('authenticated', 'public.audit_logs', 'INSERT'),
+  'clients cannot directly write audit logs'
+);
+select * from extensions.finish();
 rollback;
