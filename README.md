@@ -17,10 +17,14 @@ The repository currently contains a runnable Arabic RTL web demonstration:
 - `docs/OPEN_SOURCE_BASES.md`: review of candidate open-source foundations, licence boundaries, and operational caveats.
 - `202611100001_initial_schema.sql`: initial PostgreSQL data model and restrictive baseline RLS policies.
 - `202611100002_secure_ride_commands.sql` and `202611100003_auth_bootstrap.sql`: first server-side command and account-bootstrap drafts.
-- `202611100004_security_hardening.sql`: removes client-supplied fare amounts from ride creation. A ride now requires a short-lived, single-use fare quote written by a trusted server; the browser cannot write or alter quote rows. Also hardens offer acceptance and driver availability transitions.
+- `202611100004_security_hardening.sql`: removes client-supplied fare amounts from ride creation. A ride now requires a short-lived, single-use fare quote written by a trusted server; the browser cannot write or alter quote rows.
 - `202611100005_auth_hardening.sql`: stops trusting user-editable metadata as a verified phone number and pins privileged function search paths.
+- `202611100006_dispatch_and_presence.sql`: adds private driver location storage, validated driver location/availability RPCs, server-only nearby dispatch, and expiring-offer lifecycle.
+- `202611100007_transaction_hardening.sql`: uses cryptographically generated boarding PINs and consistent ride-first lock ordering for offer acceptance.
+- `supabase/tests/database/001_security_contract.sql`: adds pgTAP checks for private coordinates, fare quote permissions, and server-only dispatch.
+- Removed the fabricated distance-based fare and invented driver offer amount from the visible demo. The UI now labels pricing as unavailable until real routing and fare policy are connected.
 
-These are committed source migrations, **not evidence of a deployed or tested backend**. They have not yet been applied to a Supabase project or validated against a live PostgreSQL instance. The fare-quote server/Edge Function, routing integration, and tests are still outstanding.
+These are committed source migrations, **not evidence of a deployed or tested backend**. They have not yet been applied to a Supabase project or validated against a live PostgreSQL instance. The trusted fare-quote Edge Function, route provider integration, actual database test execution, Supabase connection, and realtime client are still outstanding.
 
 ## Run the current web demonstration
 
