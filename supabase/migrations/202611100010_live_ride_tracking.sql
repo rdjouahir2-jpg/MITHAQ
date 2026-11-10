@@ -13,7 +13,6 @@ returns table (
   driver_location_recorded_at timestamptz
 )
 language plpgsql
-stable
 security definer
 set search_path = ''
 as $$
@@ -29,8 +28,7 @@ begin
 
   select * into v_ride
   from public.rides r
-  where r.id = p_ride_id
-  for share;
+  where r.id = p_ride_id;
 
   if not found then
     raise exception 'ride_not_found' using errcode = 'P0002';
