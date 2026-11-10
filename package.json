@@ -16,7 +16,8 @@
     "react": "latest",
     "react-dom": "latest",
     "lucide-react": "latest",
-    "@supabase/supabase-js": "latest"
+    "@supabase/supabase-js": "latest",
+    "maplibre-gl": "^6.17.0"
   },
   "devDependencies": {
     "@types/react": "latest",
