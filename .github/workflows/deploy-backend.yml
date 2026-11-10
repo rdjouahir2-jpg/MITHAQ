@@ -1,0 +1,62 @@
+name: Deploy MITHAQ backend (manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type DEPLOY to apply migrations and deploy backend to the MITHAQ test project"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mithaq-test-backend-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: ${{ inputs.confirm == 'DEPLOY' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate deployment credentials
+        shell: bash
+        run: |
+          test -n "$SUPABASE_ACCESS_TOKEN" || { echo "::error::Missing SUPABASE_ACCESS_TOKEN repository secret"; exit 1; }
+          test -n "$SUPABASE_DB_PASSWORD" || { echo "::error::Missing SUPABASE_DB_PASSWORD repository secret"; exit 1; }
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Link test project
+        run: supabase link --project-ref bzoubheoooszhzajzsur --password "$SUPABASE_DB_PASSWORD"
+
+      - name: Apply ordered database migrations
+        run: supabase db push --linked --yes
+
+      - name: Set server-only function configuration
+        shell: bash
+        env:
+          CRON_SECRET: ${{ secrets.MITHAQ_CRON_SECRET }}
+        run: |
+          test -n "$CRON_SECRET" || { echo "::error::Missing MITHAQ_CRON_SECRET repository secret"; exit 1; }
+          printf 'ALLOWED_ORIGIN=%s\nROUTING_BASE_URL=%s\nCRON_SECRET=%s\n' \
+            'https://rdjouahir2-jpg.github.io' \
+            'https://router.project-osrm.org' \
+            "$CRON_SECRET" > "$RUNNER_TEMP/mithaq-function-secrets.env"
+          supabase secrets set --project-ref bzoubheoooszhzajzsur --env-file "$RUNNER_TEMP/mithaq-function-secrets.env"
+          rm -f "$RUNNER_TEMP/mithaq-function-secrets.env"
+
+      - name: Deploy fare quote function
+        run: supabase functions deploy create-fare-quote --project-ref bzoubheoooszhzajzsur
+
+      - name: Deploy dispatch maintenance function
+        run: supabase functions deploy dispatch-maintenance --project-ref bzoubheoooszhzajzsur --no-verify-jwt
