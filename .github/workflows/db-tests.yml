@@ -29,7 +29,12 @@ jobs:
         with:
           version: latest
       - name: Start local Supabase stack and apply migrations
-        run: supabase start
+        run: |
+          if ! supabase start > /tmp/mithaq-supabase-start.log 2>&1; then
+            sed -E 's/sb_secret_[A-Za-z0-9_-]+/[REDACTED]/g; s/sb_publishable_[A-Za-z0-9_-]+/[REDACTED]/g' /tmp/mithaq-supabase-start.log | tail -n 100
+            exit 1
+          fi
+          echo "Local Supabase stack started. Startup keys are not printed to CI logs."
       - name: Run pgTAP database tests
         run: supabase test db
       - name: Stop local Supabase stack
