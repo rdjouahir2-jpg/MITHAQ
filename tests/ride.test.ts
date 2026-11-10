@@ -1,4 +1,3 @@
-import { assertEquals, assertThrows } from 'node:assert/strict'
 import {
   assertMoneyAmount,
   assertRideSnapshot,
@@ -7,55 +6,67 @@ import {
   formatDzd,
 } from '../src/domain/ride.ts'
 
+function equal(actual: unknown, expected: unknown, label: string): void {
+  if (actual !== expected) throw new Error(`${label}: expected ${String(expected)}, received ${String(actual)}`)
+}
+
+function throws(action: () => unknown, messagePart?: string): void {
+  try {
+    action()
+  } catch (error) {
+    if (messagePart && (!(error instanceof Error) || !error.message.includes(messagePart))) {
+      throw new Error(`Expected error containing "${messagePart}"`)
+    }
+    return
+  }
+  throw new Error('Expected the operation to throw')
+}
+
 Deno.test('driver can advance an accepted ride toward pickup', () => {
-  assertEquals(canTransition({ from: 'accepted', to: 'driver_arriving', actor: 'driver' }), true)
-  assertEquals(canTransition({ from: 'driver_arriving', to: 'arrived', actor: 'driver' }), true)
+  equal(canTransition({ from: 'accepted', to: 'driver_arriving', actor: 'driver' }), true, 'accepted → driver_arriving')
+  equal(canTransition({ from: 'driver_arriving', to: 'arrived', actor: 'driver' }), true, 'driver_arriving → arrived')
 })
 
 Deno.test('passenger cannot perform driver-only transitions', () => {
-  assertEquals(canTransition({ from: 'accepted', to: 'driver_arriving', actor: 'passenger' }), false)
-  assertThrows(
-    () => assertTransition({ from: 'accepted', to: 'driver_arriving', actor: 'passenger' }),
-    Error,
-    'Invalid ride transition',
-  )
+  equal(canTransition({ from: 'accepted', to: 'driver_arriving', actor: 'passenger' }), false, 'passenger transition')
+  throws(() => assertTransition({ from: 'accepted', to: 'driver_arriving', actor: 'passenger' }), 'Invalid ride transition')
 })
 
 Deno.test('terminal rides cannot be reopened', () => {
-  assertEquals(canTransition({ from: 'completed', to: 'cancelled', actor: 'admin' }), false)
-  assertThrows(() => assertTransition({ from: 'completed', to: 'cancelled', actor: 'admin' }))
+  equal(canTransition({ from: 'completed', to: 'cancelled', actor: 'admin' }), false, 'completed is terminal')
+  throws(() => assertTransition({ from: 'completed', to: 'cancelled', actor: 'admin' }), 'Invalid ride transition')
 })
 
 Deno.test('money uses non-negative safe integer minor units', () => {
   assertMoneyAmount(0)
   assertMoneyAmount(12550)
-  assertThrows(() => assertMoneyAmount(-1))
-  assertThrows(() => assertMoneyAmount(1.5))
-  assertThrows(() => assertMoneyAmount(Number.MAX_SAFE_INTEGER + 1))
+  throws(() => assertMoneyAmount(-1))
+  throws(() => assertMoneyAmount(1.5))
+  throws(() => assertMoneyAmount(Number.MAX_SAFE_INTEGER + 1))
 })
 
 Deno.test('assigned ride states require a driver', () => {
-  assertThrows(() => assertRideSnapshot({
+  throws(() => assertRideSnapshot({
     id: 'ride-1', status: 'accepted', passengerId: 'passenger-1', driverId: null,
     quotedAmountMinor: 1000, finalAmountMinor: null, currency: 'DZD', version: 1,
-  }), Error, 'An assigned driver is required')
+  }), 'An assigned driver is required')
 })
 
 Deno.test('completed rides require a finalized amount', () => {
-  assertThrows(() => assertRideSnapshot({
+  throws(() => assertRideSnapshot({
     id: 'ride-1', status: 'completed', passengerId: 'passenger-1', driverId: 'driver-1',
     quotedAmountMinor: 1000, finalAmountMinor: null, currency: 'DZD', version: 2,
-  }), Error, 'completed ride must have a finalized amount')
+  }), 'completed ride must have a finalized amount')
 })
 
 Deno.test('valid requested ride snapshot passes invariants', () => {
-  assertEquals(assertRideSnapshot({
+  assertRideSnapshot({
     id: 'ride-1', status: 'requested', passengerId: 'passenger-1', driverId: null,
     quotedAmountMinor: 12500, finalAmountMinor: null, currency: 'DZD', version: 0,
-  }), undefined)
+  })
 })
 
 Deno.test('DZD display formatting rejects invalid amounts', () => {
-  assertEquals(typeof formatDzd(1000), 'string')
-  assertThrows(() => formatDzd(-100))
+  equal(typeof formatDzd(1000), 'string', 'formatted amount')
+  throws(() => formatDzd(-100))
 })
