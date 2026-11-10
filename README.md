@@ -1,42 +1,52 @@
 # MITHAQ
 
-**A safety-conscious, locally adapted mobility platform concept for Algeria.**
+**Smart mobility platform concept for Algeria.**
 
-MITHAQ is being designed as a ride-hailing platform with passenger, driver, and operations experiences. The project is starting with product definition and technical foundations before implementation or any real-world pilot.
+## Current software status
 
-## Project principles
+This repository contains the first runnable web MVP shell:
+- Arabic, RTL, responsive interface.
+- Passenger booking flow with editable pickup/destination and illustrative fare estimate.
+- Driver availability and simulated offer acceptance.
+- Basic operations dashboard placeholder.
+- Simulated ride lifecycle.
+- PWA manifest for install-to-home-screen support.
 
-- Build for Algerian operating realities; validate legal, insurance, payment, and connectivity assumptions before launch.
-- Prioritize passenger and driver safety, privacy, and transparent trip handling.
-- Start with a tightly scoped MVP in one launch area; expand only after evidence from a controlled pilot.
-- Use a modular, maintainable architecture and prefer open standards and cost-conscious infrastructure.
-- Learn and document each subsystem rather than generating an opaque application.
+**Important:** This is a local demonstration only. It does not connect passengers to real drivers, use live GPS/maps, authenticate users, store trips, process payments, or provide emergency response. All ride transitions and prices shown in the interface are simulated.
 
-## Current status
+## Run locally
 
-**Phase:** Foundation and product definition  
-**Not yet implemented:** production backend, mobile apps, dispatch, payments, live tracking, or deployment.
+Requirements: Node.js LTS and npm.
 
-## Documentation
+```bash
+npm install
+npm run dev
+```
 
-- [Product requirements](docs/PRODUCT_REQUIREMENTS.md)
-- [Architecture](docs/ARCHITECTURE.md)
-- [Data model](docs/DATA_MODEL.md)
-- [Roadmap](docs/ROADMAP.md)
-- [Security and privacy](docs/SECURITY_PRIVACY.md)
-- [Decision log](docs/DECISIONS.md)
-- [Competitor feature benchmark](docs/COMPETITOR_FEATURES.md)
-- [Open-source review](docs/OPEN_SOURCE_REVIEW.md)
-- [Third-party notices](THIRD_PARTY_NOTICES.md)
+Open the local URL printed by Vite. To create a production bundle:
 
-## Proposed initial technology direction
+```bash
+npm run build
+npm run preview
+```
 
-The stack is a proposal, not a final lock-in: TypeScript, Expo/React Native for mobile clients, PostgreSQL with PostGIS for geospatial data, and a modular backend. Mapping should use an open-data-friendly approach where practical. Technology choices will be validated against device constraints, operating cost, licensing, and maintainability before implementation.
+## Backend setup status
 
-## Important boundary
+The backend is not connected yet. The next integration is Supabase (PostgreSQL, Auth, Realtime, and Row Level Security). Create a Supabase project, apply the migration in `supabase/migrations`, then add the project URL and publishable/anon key to a local `.env` file based on `.env.example`. Never expose a service-role key in the browser.
 
-MITHAQ is currently a software project. This repository does not authorize or represent an active passenger transport service. No real rides, identity documents, payments, or precise location data should be collected during development. Legal and operational requirements must be reviewed with qualified local sources before any pilot.
+## Project areas
 
-## Contributing and ownership
+- `src/`: web prototype.
+- `supabase/migrations/`: database schema and security policies.
+- `docs/`: product, architecture, data model, safety, and roadmap.
 
-This repository is private and currently maintained by its owner. Do not add secrets, API keys, personal data, identity documents, or production credentials to Git history.
+## Legal and operational boundary
+
+MITHAQ is software under development, not an operating transport company. Before a real pilot, validate Algerian transport permissions, operator/driver eligibility, insurance, consumer terms, privacy requirements, support coverage, and emergency escalation with qualified local sources.
+
+## Development principles
+
+- Synthetic data only until security and privacy controls are reviewed.
+- Server-side authorization and pricing; never trust the client for ride state or fare.
+- No biometric recognition in the MVP.
+- No real payments until legal, accounting, and security reviews are complete.
