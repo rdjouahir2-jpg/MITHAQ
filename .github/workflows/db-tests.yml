@@ -12,6 +12,10 @@ on:
       - "supabase/**"
       - ".github/workflows/db-tests.yml"
 
+concurrency:
+  group: mithaq-db-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
