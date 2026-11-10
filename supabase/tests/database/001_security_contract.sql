@@ -2,7 +2,7 @@
 -- Run with: supabase test db
 begin;
 create extension if not exists pgtap with schema extensions;
-select extensions.plan(23);
+select extensions.plan(25);
 
 select extensions.has_table('public', 'driver_locations', 'driver location table exists');
 select extensions.ok(
@@ -93,6 +93,14 @@ select extensions.ok(
 select extensions.ok(
   not has_function_privilege('authenticated', 'public.claim_routing_request_slot()', 'EXECUTE'),
   'clients cannot bypass the shared routing rate gate'
+);
+select extensions.ok(
+  exists (select 1 from pg_trigger where tgname = 'driver_location_clear_on_offline' and not tgisinternal),
+  'driver location is cleared when a profile goes offline'
+);
+select extensions.ok(
+  (select prosecdef from pg_proc where oid = 'public.clear_driver_location_on_offline()'::regprocedure),
+  'location cleanup trigger runs with the required server privilege'
 );
 select * from extensions.finish();
 rollback;
