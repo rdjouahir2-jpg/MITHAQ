@@ -106,18 +106,27 @@ Deno.serve(async (req: Request) => {
       return json(429, { error: "quote_rate_limit_exceeded" }, allowedOrigin);
     }
 
-    const { data: policy, error: policyError } = await admin
-      .from("fare_policies")
-      .select("version, currency_code, base_amount_minor, distance_rate_minor, time_rate_minor, minimum_amount_minor")
-      .is("service_area_id", null)
-      .eq("is_active", true)
-      .order("version", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    const { data: policyRows, error: policyError } = await admin.rpc(
+      "resolve_fare_policy_for_route",
+      {
+        p_pickup_latitude: pickup.latitude,
+        p_pickup_longitude: pickup.longitude,
+        p_destination_latitude: destination.latitude,
+        p_destination_longitude: destination.longitude,
+      },
+    );
 
-    if (policyError) throw policyError;
+    if (policyError) {
+      const code = String(policyError.message ?? "");
+      if (code.includes("route_outside_active_service_area") ||
+          code.includes("active_service_area_fare_policy_required")) {
+        return json(422, { error: "route_not_in_configured_service_area" }, allowedOrigin);
+      }
+      throw policyError;
+    }
+    const policy = Array.isArray(policyRows) ? policyRows[0] : null;
     if (!policy) {
-      return json(503, { error: "no_active_fare_policy" }, allowedOrigin);
+      return json(503, { error: "no_active_area_fare_policy" }, allowedOrigin);
     }
 
     let routeUrl: URL;
@@ -191,6 +200,7 @@ Deno.serve(async (req: Request) => {
         route_distance_m: distanceM,
         route_duration_s: durationS,
         fare_policy_version: policy.version,
+        service_area_id: policy.service_area_id,
         expires_at: expiresAt,
       })
       .select("id, amount_minor, currency_code, route_distance_m, route_duration_s, expires_at")
