@@ -554,6 +554,7 @@ export default function App() {
               else {setDestination(point);setDestinationLabel(label => label || 'الوجهة المحددة')}
               setQuote(null)
             }} onLocate={point => {setPickup(point);setPickupLabel('موقعي الحالي');setSelection('destination');setQuote(null)}}/>
+            <p className="microcopy">بيانات الخريطة © OpenStreetMap · حساب المسار OSRM.</p>
             {tracking && <p className="microcopy">موقع السائق يُعرض فقط أثناء الرحلة النشطة ولأطراف الرحلة.</p>}
           </section>
         </div>}
