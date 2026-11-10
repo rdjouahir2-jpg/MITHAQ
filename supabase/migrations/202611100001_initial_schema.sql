@@ -1,7 +1,9 @@
 -- MITHAQ initial schema (prototype baseline)
 -- Apply only to a new Supabase project after reviewing this migration.
-create extension if not exists pgcrypto;
-create extension if not exists postgis;
+-- Keep extension-owned objects out of the exposed public API schema.
+create schema if not exists extensions;
+create extension if not exists pgcrypto with schema extensions;
+create extension if not exists postgis with schema extensions;
 
 create type public.app_role as enum ('passenger','driver','support','admin');
 create type public.ride_status as enum ('requested','offered','accepted','driver_arriving','arrived','boarded','in_progress','completed','cancelled','expired','no_driver_found');
@@ -43,7 +45,7 @@ create table public.vehicles (
 create table public.service_areas (
   id uuid primary key default gen_random_uuid(),
   name text not null,
-  boundary geography(multipolygon,4326),
+  boundary extensions.geography(multipolygon,4326),
   is_active boolean not null default false,
   created_at timestamptz not null default now()
 );
@@ -66,8 +68,8 @@ create table public.rides (
   driver_id uuid references public.driver_profiles(id),
   pickup_label text not null,
   destination_label text not null,
-  pickup_point geography(point,4326),
-  destination_point geography(point,4326),
+  pickup_point extensions.geography(point,4326),
+  destination_point extensions.geography(point,4326),
   category text not null default 'economy' check (category in ('economy','comfort','family')),
   status public.ride_status not null default 'requested',
   quoted_amount_minor bigint not null check (quoted_amount_minor >= 0),
