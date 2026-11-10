@@ -1,74 +1,67 @@
 # MITHAQ
 
-**Smart mobility platform concept for Algeria.**
+**منصة تنقّل ذكية قيد البناء للاختبار المغلق في الجزائر.**
 
+MITHAQ is an Arabic RTL ride-hailing application foundation. The repository now contains a connected-client implementation and a Supabase backend, but the hosted test project has not yet been created or connected. This is **not a live transport service**.
 
-## Connected test features
+## Implemented in source
 
-- Supabase email/password authentication and role-aware passenger, driver, and admin screens.
-- MapLibre map with GPS-based pickup selection, destination selection, and trusted route geometry.
-- Server-calculated quotes bound to an active service-area boundary and its fare policy.
-- Atomic ride requests, nearby-driver dispatch, expiring offers, boarding PINs, and controlled ride transitions.
-- Realtime ride/offer updates and participant-only driver tracking during active trips.
-- Driver application/vehicle submission, audited admin approval, safety-report review, and mutual post-trip ratings.
-- Scheduled maintenance function for expired offers and redispatch retry.
+- Email/password authentication and role-aware passenger, driver, and admin screens.
+- Interactive MapLibre map with pickup/destination selection, browser GPS, and road-route geometry.
+- Server-side area-specific fare quotes; no client-supplied price.
+- PostGIS dispatch using approved drivers/vehicles, fresh GPS, and exact radius matching.
+- Timed driver offers, accept/decline, one active ride per passenger, and one-time boarding PIN.
+- Ride state machine, participant-only tracking, and foreground driver GPS while online/on a trip.
+- Assigned driver and vehicle details for passengers; passenger name for the assigned driver.
+- Admin account/vehicle/driver review, ride operations, safety reports, and audit records.
+- Mutual post-trip ratings and scheduled offer-expiry/redispatch maintenance.
+- Location minimization: one current driver fix, deleted on offline and cleaned when stale.
 
-See [the closed-test setup runbook](docs/BACKEND_SETUP.md) before connecting a hosted test project. Review [Algeria-specific legal blockers](docs/ALGERIA_LEGAL_REVIEW.md) before any real-world passenger trial. The two-device validation checklist is in [TEST_PLAN.md](docs/TEST_PLAN.md), the prioritized next features are in [FEATURE_BACKLOG.md](docs/FEATURE_BACKLOG.md), and the current data-handling inventory is in [PRIVACY_AND_DATA.md](docs/PRIVACY_AND_DATA.md). It explains the one-time admin bootstrap, service-area configuration, Edge Function secrets, scheduler, GitHub Pages variables, and two-phone test sequence.
+These are committed source capabilities. They are not evidence of a deployed backend or a successful two-phone trip.
 
-## Current software status
+## Repository and live preview
 
-The repository currently contains a runnable Arabic RTL web demonstration:
-- Responsive passenger, driver, and admin-placeholder screens.
-- Simulated ride lifecycle and illustrative fare display.
-- PWA manifest for install-to-home-screen testing.
+- GitHub repository: https://github.com/rdjouahir2-jpg/MITHAQ
+- GitHub Pages: https://rdjouahir2-jpg.github.io/MITHAQ/
 
-**This is not a live ride-hailing service.** It does not yet authenticate users, locate drivers, dispatch trips, calculate road fares, send notifications, process payments, or provide emergency response. The visible booking and driver actions are simulations.
+The public Supabase configuration file `src/lib/public-config.ts` is intentionally blank until a dedicated test project is connected. Until then, the Pages site displays a clear “backend not configured” screen rather than pretending to book rides.
 
-## Engineering work committed (2026-11-10)
+## Local development
 
-- `src/domain/ride.ts`: typed ride states, actor transition rules, integer-money validation, and snapshot invariants.
-- `docs/OPEN_SOURCE_BASES.md`: review of candidate open-source foundations, licence boundaries, and operational caveats.
-- `202611100001_initial_schema.sql`: initial PostgreSQL data model and restrictive baseline RLS policies.
-- `202611100002_secure_ride_commands.sql` and `202611100003_auth_bootstrap.sql`: first server-side command and account-bootstrap drafts.
-- `202611100004_security_hardening.sql`: removes client-supplied fare amounts from ride creation. A ride now requires a short-lived, single-use fare quote written by a trusted server; the browser cannot write or alter quote rows.
-- `202611100005_auth_hardening.sql`: stops trusting user-editable metadata as a verified phone number and pins privileged function search paths.
-- `202611100006_dispatch_and_presence.sql`: adds private driver location storage, validated driver location/availability RPCs, server-only nearby dispatch, and expiring-offer lifecycle.
-- `202611100007_transaction_hardening.sql`: uses cryptographically generated boarding PINs and consistent ride-first lock ordering for offer acceptance.
-- `supabase/tests/database/001_security_contract.sql`: adds pgTAP checks for private coordinates, fare quote permissions, and server-only dispatch.
-- `supabase/functions/create-fare-quote/index.ts`: authenticated Edge Function for road-route validation, server-side fare calculation, rate-limited quote creation, and single-use quote storage.
-- `docs/BACKEND_SETUP.md`: exact migration order, required server secrets, deployment boundary, and outstanding release gates.
-- Removed the fabricated distance-based fare and invented driver offer amount from the visible demo. The UI now labels pricing as unavailable until real routing and fare policy are connected.
+Requirements: Node.js 22 and npm.
 
-These are committed source migrations, **not evidence of a deployed or tested backend**. They have not yet been applied to a Supabase project or validated against a live PostgreSQL instance. The Edge Function source is committed but not deployed or tested; a trusted routing endpoint and active fare policy must be configured. Actual database test execution, Supabase connection, realtime client, and mobile integration remain outstanding.
-
-## Run the current web demonstration
-
-Requirements: Node.js LTS and npm.
-
-```bash
-npm install
+```sh
+npm ci
+cp .env.example .env.local
+# Add the test project's public URL and anon/publishable key to .env.local
 npm run dev
 ```
 
-Build check:
+Build:
 
-```bash
+```sh
 npm run build
 ```
 
-## Architecture direction
+## Backend
 
-Keep the initial product narrow: one launch area, passenger and driver workflows, controlled driver onboarding, server-authoritative fares and trip state, and a closed pilot before any public launch. Use PostgreSQL transactions for consistency, RLS for row access, and narrowly granted server functions for privileged commands. Use Edge Functions for trusted integrations such as route-provider calls and dispatch orchestration.
+There are currently 23 ordered SQL migrations in `supabase/migrations/`, local Supabase configuration, pgTAP security-contract tests, and GitHub Actions workflows for frontend/Deno checks and database tests.
 
-Never place a Supabase service-role key in browser code. Do not expose a live booking flow until the fare quote, dispatch, identity, safety, monitoring, and support paths have been tested.
+Read [BACKEND_SETUP.md](docs/BACKEND_SETUP.md) before creating a test project. It covers:
 
-## Legal and operational boundary
+- first-admin bootstrap without self-granting roles;
+- service-area polygon and test fare policy;
+- deploying the two Edge Functions and configuring server-only secrets;
+- scheduling offer expiry and dispatch retry;
+- connecting the public browser configuration;
+- preparing two separate accounts for the two-phone test.
 
-MITHAQ is software under development, not an operating transport company. Before a real pilot, validate Algerian transport permissions, operator and driver eligibility, insurance, consumer terms, privacy requirements, support coverage, and emergency escalation with qualified local sources.
+## Validation and release gates
 
-## Development principles
+- [Two-device test plan](docs/TEST_PLAN.md)
+- [Implementation status](docs/IMPLEMENTATION_STATUS.md)
+- [Prioritized feature backlog](docs/FEATURE_BACKLOG.md)
+- [Privacy and data inventory](docs/PRIVACY_AND_DATA.md)
+- [Algeria legal review](docs/ALGERIA_LEGAL_REVIEW.md)
 
-- Synthetic data only until security and privacy controls are reviewed.
-- Server-side authorization and pricing; never trust the client for ride state or fare.
-- No biometric recognition in the MVP.
-- No real payments until legal, accounting, and security reviews are complete.
+**Do not carry paying passengers or launch publicly.** The Algerian VTC/taxi operating model, authorizations, insurance, privacy obligations, and emergency/support operations must be confirmed before any real-world passenger service. Driver approval in this app is a test-platform flag, not a legal permit.
