@@ -2,6 +2,19 @@
 
 **Smart mobility platform concept for Algeria.**
 
+
+## Connected test features
+
+- Supabase email/password authentication and role-aware passenger, driver, and admin screens.
+- MapLibre map with GPS-based pickup selection, destination selection, and trusted route geometry.
+- Server-calculated quotes bound to an active service-area boundary and its fare policy.
+- Atomic ride requests, nearby-driver dispatch, expiring offers, boarding PINs, and controlled ride transitions.
+- Realtime ride/offer updates and participant-only driver tracking during active trips.
+- Driver application/vehicle submission, audited admin approval, and safety-report review.
+- Scheduled maintenance function for expired offers and redispatch retry.
+
+See [the closed-test setup runbook](docs/BACKEND_SETUP.md) before connecting a hosted test project. It explains the one-time admin bootstrap, service-area configuration, Edge Function secrets, scheduler, GitHub Pages variables, and two-phone test sequence.
+
 ## Current software status
 
 The repository currently contains a runnable Arabic RTL web demonstration:
