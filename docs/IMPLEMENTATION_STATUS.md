@@ -17,6 +17,7 @@ Updated: 2026-11-10
 - [x] Passenger sees assigned driver and approved vehicle details; driver sees only the assigned passenger name.
 - [x] Database enforces one active ride per passenger and blocks redispatch of a stale request after a new active booking.
 - [x] Server verifies the entire road route remains inside the active service-area polygon, not just the pickup and destination points.
+- [x] Shared database rate gate limits the public test routing endpoint to one request per second across the project.
 - [x] Passenger safety-report submission and audited admin review.
 - [x] Mutual one-time post-trip ratings, stored through a participant-checked RPC.
 - [x] Continue driver GPS during an active trip while keeping busy drivers out of new dispatch matching.
@@ -25,7 +26,7 @@ Updated: 2026-11-10
 - [x] Server-side dispatch using PostGIS exact-radius distance, approved vehicle checks, fresh GPS, and no duplicate pending driver offers.
 - [x] Scheduled maintenance Edge Function source for offer expiry, redispatch retries, and expired quote cleanup.
 - [x] Service-area boundary enforcement and area-specific fare policy lookup.
-- [x] Twenty-one ordered SQL migrations, Supabase local configuration, pgTAP security tests, and GitHub Actions database-test workflow.
+- [x] Twenty-two ordered SQL migrations, Supabase local configuration, pgTAP security tests, and GitHub Actions database-test workflow.
 - [x] Deno type-check workflow for both Edge Functions.
 - [x] Dependency lockfile generation integrated into CI; lockfile commit/push must complete successfully before it is considered persisted.
 - [x] GitHub Pages build reads a dedicated public-only Supabase config file; no service-role secret is required by the browser.
@@ -50,7 +51,7 @@ Updated: 2026-11-10
 
 ## Closed-test gate
 
-The source code is not the same as a deployed service. Do not ask a friend to test until the hosted test project is connected, all twenty-one migrations and database tests pass, both Edge Functions are deployed, the service area and test fare are configured, and the two-phone flow has passed internal checks. Keep the first trial non-commercial and do not carry paying passengers.
+The source code is not the same as a deployed service. Do not ask a friend to test until the hosted test project is connected, all twenty-two migrations and database tests pass, both Edge Functions are deployed, the service area and test fare are configured, and the two-phone flow has passed internal checks. Keep the first trial non-commercial and do not carry paying passengers.
 
 ## Production gate
 
