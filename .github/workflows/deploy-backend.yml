@@ -36,8 +36,35 @@ jobs:
         with:
           version: latest
 
+      - name: Check database connection string format
+        shell: bash
+        run: |
+          python - <<'PY'
+          import os, sys
+          from urllib.parse import urlsplit
+          value = os.environ.get("SUPABASE_DB_URL", "")
+          try:
+              parsed = urlsplit(value)
+              valid = (
+                  parsed.scheme == "postgresql"
+                  and parsed.hostname is not None
+                  and parsed.hostname.endswith("pooler.supabase.com")
+                  and parsed.username is not None
+                  and parsed.password is not None
+                  and parsed.password != "[YOUR-PASSWORD]"
+                  and parsed.port == 5432
+                  and parsed.path == "/postgres"
+              )
+          except Exception:
+              valid = False
+          if not valid:
+              print("::error::SUPABASE_DB_URL is not a valid Session Pooler URL. Recreate the secret from Supabase > Connect > Session pooler, replace [YOUR-PASSWORD], and URL-encode special characters in the database password. Do not share the URL in chat.")
+              sys.exit(1)
+          print("Database URL format looks valid; its value is hidden.")
+          PY
+
       - name: Apply ordered database migrations over IPv4 session pooler
-        run: supabase db push --db-url "$SUPABASE_DB_URL" --yes
+        run: supabase db push --remote="$SUPABASE_DB_URL" --yes
 
       - name: Set server-only function configuration
         shell: bash
