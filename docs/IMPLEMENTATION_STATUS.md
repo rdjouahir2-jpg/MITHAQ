@@ -16,6 +16,8 @@ Updated: 2026-11-10
 - [x] Server-only nearby-driver dispatch with approved vehicle checks and expiring offers.
 - [x] Cryptographic boarding PIN generation and ride-first row-lock ordering for offer acceptance.
 - [x] pgTAP security-contract test file added (not yet executed against a database).
+- [x] Authenticated fare-quote Edge Function source added with route validation, server-side pricing, short-lived quotes, and per-user rate limiting.
+- [x] Backend deployment and secrets checklist documented.
 - [x] Removed fabricated fare and driver offer amounts from the demo UI.
 - [x] GitHub Actions build and demo deployment succeeded for commit `1f1ffc5012dc65dfedea93de4a29efddc710ca23` before the two newest hardening migrations were added.
 
@@ -25,7 +27,7 @@ Updated: 2026-11-10
 - [ ] Verify PostGIS is installed in the `extensions` schema before applying the schema that uses geography.
 - [ ] Run SQL migrations against PostgreSQL and resolve any platform-specific issues.
 - [ ] Automated database tests: authentication, RLS isolation, concurrent offer acceptance, quote reuse/expiry, PIN failure/success, and every legal ride transition.
-- [ ] Trusted fare-quote Edge Function with server-side route validation and active fare-policy lookup.
+- [ ] Deploy and integration-test the fare-quote Edge Function with a trusted routing endpoint and active fare policy.
 - [ ] Connect dispatch and offer expiry to a trusted Edge Function / scheduled worker.
 - [ ] Dispatch engine and driver location ingestion with freshness, radius, and eligibility checks.
 - [ ] Supabase Auth UI and real session handling.
