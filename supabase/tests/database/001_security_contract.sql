@@ -2,7 +2,7 @@
 -- Run with: supabase test db
 begin;
 create extension if not exists pgtap with schema extensions;
-select extensions.plan(13);
+select extensions.plan(16);
 
 select extensions.has_table('public', 'driver_locations', 'driver location table exists');
 select extensions.ok(
@@ -53,6 +53,18 @@ select extensions.ok(
 select extensions.ok(
   not has_table_privilege('authenticated', 'public.audit_logs', 'INSERT'),
   'clients cannot directly write audit logs'
+);
+select extensions.ok(
+  (select relrowsecurity from pg_class where oid = 'public.ride_ratings'::regclass),
+  'ride ratings has row-level security enabled'
+);
+select extensions.ok(
+  not has_table_privilege('authenticated', 'public.ride_ratings', 'INSERT'),
+  'clients cannot write ratings directly'
+);
+select extensions.ok(
+  has_function_privilege('authenticated', 'public.submit_ride_rating(uuid,integer,text)', 'EXECUTE'),
+  'participants can submit ratings through the guarded RPC'
 );
 select * from extensions.finish();
 rollback;
