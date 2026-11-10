@@ -10,7 +10,7 @@
 - Server-calculated quotes bound to an active service-area boundary and its fare policy.
 - Atomic ride requests, nearby-driver dispatch, expiring offers, boarding PINs, and controlled ride transitions.
 - Realtime ride/offer updates and participant-only driver tracking during active trips.
-- Driver application/vehicle submission, audited admin approval, and safety-report review.
+- Driver application/vehicle submission, audited admin approval, safety-report review, and mutual post-trip ratings.
 - Scheduled maintenance function for expired offers and redispatch retry.
 
 See [the closed-test setup runbook](docs/BACKEND_SETUP.md) before connecting a hosted test project. It explains the one-time admin bootstrap, service-area configuration, Edge Function secrets, scheduler, GitHub Pages variables, and two-phone test sequence.
