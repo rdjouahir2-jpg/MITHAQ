@@ -247,7 +247,7 @@ export default function App() {
   }, [user, ratingRide?.id, screen])
 
   useEffect(() => {
-    if (!driverOnline || !driverProfile) return
+    if (!driverProfile || !['online','busy'].includes(driverProfile.availability_status)) return
     if (!navigator.geolocation) {
       setError('هذا المتصفح لا يدعم تحديد الموقع؛ لا يمكن إدخالك في المطابقة.')
       return
@@ -268,7 +268,7 @@ export default function App() {
       enableHighAccuracy: true, maximumAge: 5000, timeout: 15000,
     })
     return () => navigator.geolocation.clearWatch(watchId)
-  }, [driverOnline, driverProfile?.id])
+  }, [driverProfile?.id, driverProfile?.availability_status])
 
   const run = async (action: () => Promise<void>) => {
     setBusy(true); setError(''); setNotice('')
@@ -524,7 +524,12 @@ export default function App() {
           <section className="panel driver-status"><span className="section-kicker">ملف السائق</span><h2>{driverProfile ? driverProfile.onboarding_status === 'approved' ? 'سائق معتمد' : 'ملف قيد المراجعة' : 'انضم كسائق'}</h2>
             {!driverProfile && <><p>ابدأ بإرسال طلب انضمام. يجب أن يكون حسابك مفعّلاً.</p><button className="primary-btn" disabled={busy || profile?.account_status !== 'active'} onClick={applyDriver}>طلب الانضمام كسائق</button></>}
             {driverProfile && driverProfile.onboarding_status !== 'approved' && <div className="alert warning">لا يمكنك استقبال الرحلات حتى اعتماد ملف السائق والمركبة من الإدارة.</div>}
-            {driverProfile?.onboarding_status === 'approved' && <><p>حالة التوفر: {driverOnline ? 'متصل' : 'غير متصل'}</p><button className={driverOnline ? 'secondary-btn' : 'primary-btn'} disabled={busy} onClick={toggleOnline}>{driverOnline ? 'إيقاف التوفر' : 'تفعيل التوفر'}</button><p className="microcopy">عند الاتصال، يرسل هاتفك موقع GPS بدقة مناسبة للمطابقة. اسمح بإذن الموقع.</p></>}
+            {driverProfile?.onboarding_status === 'approved' && <>
+              {driverProfile.availability_status === 'busy'
+                ? <div className="alert success">أنت في رحلة نشطة. يستمر تحديث GPS لهذه الرحلة فقط، ولن تستقبل عروضًا جديدة.</div>
+                : <><p>حالة التوفر: {driverOnline ? 'متصل' : 'غير متصل'}</p><button className={driverOnline ? 'secondary-btn' : 'primary-btn'} disabled={busy} onClick={toggleOnline}>{driverOnline ? 'إيقاف التوفر' : 'تفعيل التوفر'}</button></>}
+              <p className="microcopy">يلزم السماح بالموقع. أثناء الرحلة النشطة يستمر إرسال الموقع للراكب المعني فقط.</p>
+            </>}
           </section>
           {driverProfile && driverProfile.onboarding_status !== 'approved' && <section className="panel">
             <span className="section-kicker">بيانات المركبة</span><h2>أضف مركبتك</h2>
