@@ -1,51 +1,51 @@
-# MITHAQ — Roadmap (Draft 0.1)
+# MITHAQ — Roadmap (Updated 2026-11-10)
 
-## Phase 0 — Foundations (current)
-- [x] Create private GitHub repository.
-- [x] Establish initial product and architecture documentation.
-- [ ] Confirm legal/operating assumptions for one candidate launch area.
-- [ ] Review competing services through public, user-visible workflows.
-- [ ] Select a first MVP fare mode and define support/safety operating model.
-- [ ] Validate stack choices and developer workflow on available devices.
+## Phase 0 — Product and operating foundations
+- [x] Establish product scope, Arabic RTL client, architecture, and repository.
+- [x] Document Algeria-specific legal questions and non-production boundaries.
+- [ ] Select one candidate test/launch area.
+- [ ] Validate the lawful operator/partner model and required authorizations.
+- [ ] Define the safety, support, insurance, and incident-response operating model.
 
-**Exit gate:** product scope, target area, legal pathway, and non-production boundaries are documented.
+**Exit gate:** one area and a legally viable operating model are documented. A code deployment does not satisfy this gate.
 
-## Phase 1 — Technical proof of concept
-- [ ] Set up TypeScript workspace and automated checks.
-- [ ] Create backend health endpoint and database migrations.
-- [ ] Implement authentication and role authorization.
-- [ ] Implement ride state machine and event history.
-- [ ] Add mock dispatch and offer expiry.
-- [ ] Add trip PIN verification.
-- [ ] Build basic passenger and driver demonstration screens.
-- [ ] Test concurrency, authorization, and failure paths.
+## Phase 1 — Technical foundation (deployment complete)
+- [x] TypeScript/Vite client and automated build checks.
+- [x] Supabase schema and 23 ordered migrations.
+- [x] Authentication and role authorization foundations.
+- [x] Ride state machine, secure RPC commands, dispatch, offers, and boarding PIN.
+- [x] Passenger/driver/admin demonstration workflows.
+- [x] Hosted test database migrations applied.
+- [x] Both Edge Functions deployed with server-only configuration.
+- [x] GitHub Pages deployment and frontend/Deno CI passed.
 
-**Exit gate:** synthetic end-to-end ride flow works reliably in a test environment.
+**Exit gate:** deployment verified. This phase is complete as a deployment milestone, not as proof of an end-to-end operational service.
 
-## Phase 2 — Closed operational prototype
-- [ ] Confirm lawful operator/partner model and required approvals.
-- [ ] Establish insurance, driver/vehicle verification, support coverage, and incident response.
-- [ ] Complete privacy and security review.
-- [ ] Add approved mapping/routing and limited location handling.
-- [ ] Run usability tests with consenting participants using test data.
-- [ ] Validate driver economics and passenger price comprehension.
+## Phase 2 — Closed technical test (current)
+- [ ] Bootstrap the first administrator and verify admin permissions.
+- [ ] Configure a small test service area and fare policy.
+- [ ] Configure private scheduled maintenance and verify offer expiry/redispatch.
+- [ ] Verify hosted extensions, Realtime, and grants.
+- [ ] Run the complete two-phone flow, including negative/security cases.
+- [ ] Fix and document every failed test.
 
-**Exit gate:** documented approval to conduct a limited pilot, with real support and safety operations.
+**Exit gate:** repeatable successful end-to-end tests on two Android phones, with no payment or public passenger service.
 
-## Phase 3 — Controlled pilot
-- [ ] Pilot in one defined service area.
-- [ ] Start with a limited number of approved drivers and invited passengers.
-- [ ] Monitor safety, completion, cancellations, reliability, and unit economics.
-- [ ] Review issues weekly and pause service when safety or compliance thresholds are breached.
+## Phase 3 — Lawful controlled pilot (blocked pending external validation)
+- [ ] Confirm written legal/transport permissions and operator model.
+- [ ] Establish insurance, driver/vehicle verification, staffed support, and incident response.
+- [ ] Complete privacy and independent security reviews.
+- [ ] Choose reliable production mapping/routing and notification infrastructure.
+- [ ] Conduct a limited pilot only after all approvals and operational safeguards are in place.
 
-**Exit gate:** evidence supports continued operation and sustainable economics.
+**Exit gate:** documented authority to operate a limited pilot, backed by real safety and support operations.
 
-## Phase 4 — Expansion
-- [ ] Improve dispatch and driver tools.
-- [ ] Add additional service areas only after local validation.
-- [ ] Add payments or advanced fare options only after legal, accounting, and security review.
-- [ ] Scale support, monitoring, and operational governance.
+## Phase 4 — Production readiness and expansion
+- [ ] Native Android app with reliable background location and push notifications.
+- [ ] Monitoring, backups, restore drills, load testing, and incident response.
+- [ ] Payments/settlement only after legal, accounting, and security review.
+- [ ] Expand service areas only after local validation and operational capacity.
 
-## Working cadence
+## Working principle
 
-A sustainable solo-founder rhythm is preferred over rushed feature accumulation. Each development task should end with a working test, a documented decision, or a verified learning outcome. Do not treat a checked-off code task as proof that a transport service is ready to operate.
+Build fewer features to a higher standard. Every task must end with a passing test, a verified operational result, or a documented blocker. Never describe a feature as complete solely because its UI or source code exists.
