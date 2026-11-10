@@ -210,7 +210,7 @@ begin
 
   if v_actor = 'passenger' then
     if p_next_status <> 'cancelled'
-       or v_old not in ('requested','offered','accepted','driver_arriving','arrived') then
+       or v_old not in ('requested','offered','accepted','driver_arriving','arrived','no_driver_found') then
       raise exception 'passenger_transition_not_allowed' using errcode = '42501';
     end if;
   elsif not (
