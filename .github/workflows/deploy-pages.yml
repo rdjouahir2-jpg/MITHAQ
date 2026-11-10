@@ -27,9 +27,6 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
       - name: Build
-        env:
-          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
         run: npm run build
       - name: Upload site artifact
         uses: actions/upload-pages-artifact@v3
