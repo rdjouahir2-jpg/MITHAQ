@@ -158,7 +158,11 @@ Deno.serve(async (req: Request) => {
     const routeResponse = await fetch(routeUrl, {
       signal: AbortSignal.timeout(10_000),
       redirect: "error",
-      headers: { Accept: "application/json" },
+      headers: {
+        Accept: "application/json",
+        "User-Agent": "MITHAQ-Closed-Test/0.1 (https://github.com/rdjouahir2-jpg/MITHAQ)",
+        Referer: "https://rdjouahir2-jpg.github.io/MITHAQ/",
+      },
     });
     if (!routeResponse.ok) {
       return json(502, { error: "routing_provider_unavailable" }, allowedOrigin);
