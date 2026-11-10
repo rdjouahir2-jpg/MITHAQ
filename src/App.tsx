@@ -20,6 +20,12 @@ type Ride = {
   currency_code: string
   requested_at: string
   driver_id: string | null
+  driver_name?: string | null
+  vehicle_make?: string | null
+  vehicle_model?: string | null
+  vehicle_color?: string | null
+  vehicle_seat_capacity?: number | null
+  passenger_name?: string | null
 }
 type Offer = {
   offer_id: string
@@ -122,7 +128,7 @@ export default function App() {
     const [profileResult, roleResult, ridesResult, driverResult] = await Promise.all([
       supabase.from('profiles').select('id,display_name,account_status').eq('id', userId).maybeSingle(),
       supabase.from('user_roles').select('role').eq('user_id', userId),
-      supabase.from('rides').select('id,pickup_label,destination_label,category,status,quoted_amount_minor,currency_code,requested_at,driver_id').eq('passenger_id', userId).order('requested_at', { ascending: false }).limit(20),
+      supabase.rpc('get_my_passenger_ride_details', { p_limit: 20 }),
       supabase.from('driver_profiles').select('id,onboarding_status,availability_status').eq('user_id', userId).maybeSingle(),
     ])
     if (profileResult.error) throw profileResult.error
@@ -138,7 +144,7 @@ export default function App() {
     if (driverResult.data) {
       const [offersResult, driverRidesResult] = await Promise.all([
         supabase.rpc('get_my_driver_offers'),
-        supabase.from('rides').select('id,pickup_label,destination_label,category,status,quoted_amount_minor,currency_code,requested_at,driver_id').eq('driver_id', driverResult.data.id).in('status', [...activeStatuses, 'completed']).order('requested_at', { ascending: false }).limit(5),
+        supabase.rpc('get_my_driver_ride_details', { p_limit: 5 }),
       ])
       if (offersResult.error) throw offersResult.error
       if (driverRidesResult.error) throw driverRidesResult.error
@@ -508,7 +514,7 @@ export default function App() {
               <small>هذه قناة بلاغات داخلية للاختبار وليست خدمة طوارئ.</small>
             </div>}
             {ratingRide && screen === 'passenger' && <RatingPanel ratingStatus={ratingStatus} ratingScore={ratingScore} setRatingScore={setRatingScore} ratingComment={ratingComment} setRatingComment={setRatingComment} busy={busy} submit={submitRating}/>}
-            {passengerRide && <div className="ride-summary"><span className="section-kicker">آخر رحلة</span><h3>{statusNames[passengerRide.status] ?? passengerRide.status}</h3><p>{passengerRide.pickup_label} ← {passengerRide.destination_label}</p><b>{money(passengerRide.quoted_amount_minor, passengerRide.currency_code)}</b>{!['completed','cancelled','expired','boarded','in_progress'].includes(passengerRide.status) && <button className="text-button" onClick={() => cancelRide(passengerRide.id)}>إلغاء الرحلة</button>}</div>}
+            {passengerRide && <div className="ride-summary"><span className="section-kicker">آخر رحلة</span><h3>{statusNames[passengerRide.status] ?? passengerRide.status}</h3><p>{passengerRide.pickup_label} ← {passengerRide.destination_label}</p>{passengerRide.driver_name && <p>السائق: {passengerRide.driver_name} · المركبة: {passengerRide.vehicle_make ?? ''} {passengerRide.vehicle_model ?? ''} {passengerRide.vehicle_color ?? ''}</p>}<b>{money(passengerRide.quoted_amount_minor, passengerRide.currency_code)}</b>{!['completed','cancelled','expired','boarded','in_progress'].includes(passengerRide.status) && <button className="text-button" onClick={() => cancelRide(passengerRide.id)}>إلغاء الرحلة</button>}</div>}
           </section>
           <section className="panel map-panel">
             <div className="map-top"><span className="map-tag"><MapPin size={14}/> خريطة فعلية</span><span className="map-muted">اختر النقاط مباشرة</span></div>
@@ -542,7 +548,7 @@ export default function App() {
             <button className="primary-btn" disabled={busy || !vehicleMake.trim() || !vehicleModel.trim()} onClick={submitVehicle}>إرسال المركبة للمراجعة</button>
           </section>}
           {ratingRide && screen === 'driver' && <RatingPanel ratingStatus={ratingStatus} ratingScore={ratingScore} setRatingScore={setRatingScore} ratingComment={ratingComment} setRatingComment={setRatingComment} busy={busy} submit={submitRating}/>}
-          {driverRide && <section className="panel active-driver-ride"><span className="section-kicker">الرحلة النشطة</span><h2>{statusNames[driverRide.status]}</h2><p>{driverRide.pickup_label} ← {driverRide.destination_label}</p><p>الفئة: {categoryNames[driverRide.category] ?? driverRide.category}</p>
+          {driverRide && <section className="panel active-driver-ride"><span className="section-kicker">الرحلة النشطة</span><h2>{statusNames[driverRide.status]}</h2><p>{driverRide.pickup_label} ← {driverRide.destination_label}</p><p>الراكب: {driverRide.passenger_name || 'الراكب'}</p><p>الفئة: {categoryNames[driverRide.category] ?? driverRide.category}</p>
             {driverRide.status === 'arrived' && <label className="auth-field">رمز الصعود من الراكب<input inputMode="numeric" maxLength={6} value={boardingPin} onChange={e => setBoardingPin(e.target.value.replace(/\D/g, '').slice(0,6))}/></label>}
             <button className="primary-btn" disabled={busy || (driverRide.status === 'arrived' && boardingPin.length !== 6)} onClick={() => updateDriverRide(driverRide)}>{driverRide.status === 'accepted' ? 'بدء التوجه للراكب' : driverRide.status === 'driver_arriving' ? 'تأكيد الوصول' : driverRide.status === 'arrived' ? 'تأكيد رمز الصعود' : driverRide.status === 'boarded' ? 'بدء الرحلة' : 'إنهاء الرحلة'}</button>
           </section>}
