@@ -20,9 +20,12 @@ function validCoordinate(value: unknown, min: number, max: number): value is num
 Deno.serve(async (req: Request) => {
   const configuredOrigin = Deno.env.get("ALLOWED_ORIGIN");
   const requestOrigin = req.headers.get("origin") ?? "*";
-  const allowedOrigin = configuredOrigin ?? "*";
+  const allowedOrigin = configuredOrigin ?? "null";
 
-  if (configuredOrigin && requestOrigin !== configuredOrigin) {
+  if (!configuredOrigin) {
+    return json(503, { error: "allowed_origin_not_configured" }, "null");
+  }
+  if (requestOrigin !== configuredOrigin) {
     return json(403, { error: "origin_not_allowed" }, configuredOrigin);
   }
   if (req.method === "OPTIONS") {
@@ -89,6 +92,18 @@ Deno.serve(async (req: Request) => {
     if (profileError) throw profileError;
     if (profile?.account_status !== "active") {
       return json(403, { error: "active_account_required" }, allowedOrigin);
+    }
+
+    const oneMinuteAgo = new Date(Date.now() - 60_000).toISOString();
+    const { count: recentQuoteCount, error: rateLimitError } = await admin
+      .from("fare_quotes")
+      .select("id", { count: "exact", head: true })
+      .eq("passenger_id", userResult.user.id)
+      .gte("created_at", oneMinuteAgo);
+
+    if (rateLimitError) throw rateLimitError;
+    if ((recentQuoteCount ?? 0) >= 10) {
+      return json(429, { error: "quote_rate_limit_exceeded" }, allowedOrigin);
     }
 
     const { data: policy, error: policyError } = await admin
