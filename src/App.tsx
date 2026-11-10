@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import {
-  ArrowLeftRight, CarFront, CheckCircle2, CircleHelp, Clock3, LogOut,
+  CarFront, CircleHelp, LogOut,
   MapPin, Navigation, RefreshCw, ShieldCheck, UserRound, Wallet,
 } from 'lucide-react'
 import MapPicker, { type GeoPoint } from './components/MapPicker'
@@ -44,6 +44,7 @@ type Tracking = {
   ride_id: string; ride_status: string; pickup_latitude: number; pickup_longitude: number
   destination_latitude: number; destination_longitude: number
   driver_latitude: number | null; driver_longitude: number | null
+  route_geometry: { type: 'LineString'; coordinates: [number, number][] } | null
 }
 
 const statusNames: Record<string, string> = {
@@ -433,7 +434,7 @@ export default function App() {
           </section>
           <section className="panel map-panel">
             <div className="map-top"><span className="map-tag"><MapPin size={14}/> خريطة فعلية</span><span className="map-muted">اختر النقاط مباشرة</span></div>
-            <MapPicker pickup={pickup} destination={destination} driverLocation={tracking?.driver_latitude != null && tracking?.driver_longitude != null ? {latitude: tracking.driver_latitude, longitude: tracking.driver_longitude} : null} selection={selection} onSelect={point => {
+            <MapPicker pickup={pickup ?? (tracking ? {latitude: tracking.pickup_latitude, longitude: tracking.pickup_longitude} : null)} destination={destination ?? (tracking ? {latitude: tracking.destination_latitude, longitude: tracking.destination_longitude} : null)} driverLocation={tracking?.driver_latitude != null && tracking?.driver_longitude != null ? {latitude: tracking.driver_latitude, longitude: tracking.driver_longitude} : null} routeCoordinates={quote?.route_geometry.coordinates ?? tracking?.route_geometry?.coordinates ?? null} selection={selection} onSelect={point => {
               if (selection === 'pickup') {setPickup(point);setPickupLabel(label => label || 'نقطة الانطلاق المحددة')}
               else {setDestination(point);setDestinationLabel(label => label || 'الوجهة المحددة')}
               setQuote(null)
