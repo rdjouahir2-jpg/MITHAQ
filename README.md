@@ -4,17 +4,25 @@
 
 ## Current software status
 
-This repository contains the first runnable web MVP shell:
-- Arabic, RTL, responsive interface.
-- Passenger booking flow with editable pickup/destination and illustrative fare estimate.
-- Driver availability and simulated offer acceptance.
-- Basic operations dashboard placeholder.
-- Simulated ride lifecycle.
-- PWA manifest for install-to-home-screen support.
+The repository currently contains a runnable Arabic RTL web demonstration:
+- Responsive passenger, driver, and admin-placeholder screens.
+- Simulated ride lifecycle and illustrative fare display.
+- PWA manifest for install-to-home-screen testing.
 
-**Important:** This is a local demonstration only. It does not connect passengers to real drivers, use live GPS/maps, authenticate users, store trips, process payments, or provide emergency response. All ride transitions and prices shown in the interface are simulated.
+**This is not a live ride-hailing service.** It does not yet authenticate users, locate drivers, dispatch trips, calculate road fares, send notifications, process payments, or provide emergency response. The visible booking and driver actions are simulations.
 
-## Run locally
+## Engineering work committed (2026-11-10)
+
+- `src/domain/ride.ts`: typed ride states, actor transition rules, integer-money validation, and snapshot invariants.
+- `docs/OPEN_SOURCE_BASES.md`: review of candidate open-source foundations, licence boundaries, and operational caveats.
+- `202611100001_initial_schema.sql`: initial PostgreSQL data model and restrictive baseline RLS policies.
+- `202611100002_secure_ride_commands.sql` and `202611100003_auth_bootstrap.sql`: first server-side command and account-bootstrap drafts.
+- `202611100004_security_hardening.sql`: removes client-supplied fare amounts from ride creation. A ride now requires a short-lived, single-use fare quote written by a trusted server; the browser cannot write or alter quote rows. Also hardens offer acceptance and driver availability transitions.
+- `202611100005_auth_hardening.sql`: stops trusting user-editable metadata as a verified phone number and pins privileged function search paths.
+
+These are committed source migrations, **not evidence of a deployed or tested backend**. They have not yet been applied to a Supabase project or validated against a live PostgreSQL instance. The fare-quote server/Edge Function, routing integration, and tests are still outstanding.
+
+## Run the current web demonstration
 
 Requirements: Node.js LTS and npm.
 
@@ -23,26 +31,21 @@ npm install
 npm run dev
 ```
 
-Open the local URL printed by Vite. To create a production bundle:
+Build check:
 
 ```bash
 npm run build
-npm run preview
 ```
 
-## Engineering foundation added (2026-11-10)\n\n- Added a pure TypeScript ride-domain module with an explicit status-transition policy, actor permissions, money validation in integer minor units, and ride snapshot invariants (`src/domain/ride.ts`).\n- Added an open-source foundations review with upstream licence checks and reuse boundaries (`docs/OPEN_SOURCE_BASES.md`).\n- These rules currently run only as client/domain code. They are **not** a substitute for authenticated server-side enforcement, transactional dispatch, or a live backend.\n\n## Backend command layer added (2026-11-10)\n\n- Added database functions for authenticated ride requests, atomic driver offer acceptance, participant-authorized ride state changes, and six-digit boarding PIN verification (`202611100002_secure_ride_commands.sql`).\n- Added an Auth user trigger to provision a minimal passenger profile and a pending driver application RPC (`202611100003_auth_bootstrap.sql`).\n- These migrations have been committed but **have not yet been applied to a Supabase project or integration-tested against a live database**.\n\n## Backend setup status
+## Architecture direction
 
-The backend is not connected yet. The next integration is Supabase (PostgreSQL, Auth, Realtime, and Row Level Security). Create a Supabase project, apply the migration in `supabase/migrations`, then add the project URL and publishable/anon key to a local `.env` file based on `.env.example`. Never expose a service-role key in the browser.
+Keep the initial product narrow: one launch area, passenger and driver workflows, controlled driver onboarding, server-authoritative fares and trip state, and a closed pilot before any public launch. Use PostgreSQL transactions for consistency, RLS for row access, and narrowly granted server functions for privileged commands. Use Edge Functions for trusted integrations such as route-provider calls and dispatch orchestration.
 
-## Project areas
-
-- `src/`: web prototype.
-- `supabase/migrations/`: database schema and security policies.
-- `docs/`: product, architecture, data model, safety, and roadmap.
+Never place a Supabase service-role key in browser code. Do not expose a live booking flow until the fare quote, dispatch, identity, safety, monitoring, and support paths have been tested.
 
 ## Legal and operational boundary
 
-MITHAQ is software under development, not an operating transport company. Before a real pilot, validate Algerian transport permissions, operator/driver eligibility, insurance, consumer terms, privacy requirements, support coverage, and emergency escalation with qualified local sources.
+MITHAQ is software under development, not an operating transport company. Before a real pilot, validate Algerian transport permissions, operator and driver eligibility, insurance, consumer terms, privacy requirements, support coverage, and emergency escalation with qualified local sources.
 
 ## Development principles
 
