@@ -190,6 +190,15 @@ Deno.serve(async (req: Request) => {
       return json(422, { error: "route_not_found_or_out_of_service_range" }, allowedOrigin);
     }
 
+    const { data: routeAllowed, error: routeValidationError } = await admin.rpc(
+      "validate_route_geometry_in_area",
+      { p_service_area_id: policy.service_area_id, p_route_geometry: geometry },
+    );
+    if (routeValidationError) throw routeValidationError;
+    if (routeAllowed !== true) {
+      return json(422, { error: "route_leaves_active_service_area" }, allowedOrigin);
+    }
+
     const base = Number(policy.base_amount_minor);
     const perKm = Number(policy.distance_rate_minor);
     const perMinute = Number(policy.time_rate_minor);
