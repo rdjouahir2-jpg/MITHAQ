@@ -31,7 +31,7 @@ export default function MapPicker({
       style: 'https://tiles.openfreemap.org/styles/liberty',
       center: [3.9, 36.3],
       zoom: 5.2,
-      attributionControl: true,
+      attributionControl: { compact: true },
       cooperativeGestures: true,
     })
     map.current = instance
