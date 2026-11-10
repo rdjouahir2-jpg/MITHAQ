@@ -131,14 +131,14 @@ Include header `x-mithaq-cron-secret: YOUR_CRON_SECRET`. Run it once per minute 
 
 ## 7. Connect GitHub Pages
 
-In GitHub repository Settings → Secrets and variables → Actions → Variables, create:
+The public browser configuration lives in `src/lib/public-config.ts`. After the test project is created, set:
 
-- `VITE_SUPABASE_URL` = the test project's Project URL.
-- `VITE_SUPABASE_ANON_KEY` = the test project's publishable/anon key.
+- `supabaseUrl` = the test project's Project URL.
+- `supabaseAnonKey` = the test project's publishable/anon key.
 
-These are public client configuration values, not service-role secrets. The Pages build reads them at build time. Never add `SUPABASE_SERVICE_ROLE_KEY` as a `VITE_*` variable.
+These two values are intended to be public in a browser app and are protected by database RLS. Never put `SUPABASE_SERVICE_ROLE_KEY` or any other server secret in this file or in a `VITE_*` variable. The repository can then build and deploy without requiring manual GitHub Actions variables.
 
-For local development, copy `.env.example` to `.env.local` and enter the same two public values.
+For local development, copy `.env.example` to `.env.local`; local variables override the public repository config.
 
 ## 8. Two-phone test sequence
 
