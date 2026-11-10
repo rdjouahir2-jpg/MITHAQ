@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { Map as MapLibreMap, Marker, NavigationControl } from 'maplibre-gl'
+import { Map as MapLibreMap, Marker, NavigationControl, type GeoJSONSource } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 
 export type GeoPoint = { latitude: number; longitude: number }
@@ -7,19 +7,22 @@ type Props = {
   pickup: GeoPoint | null
   destination: GeoPoint | null
   driverLocation?: GeoPoint | null
+  routeCoordinates?: [number, number][] | null
   selection: 'pickup' | 'destination'
   onSelect: (point: GeoPoint) => void
   onLocate: (point: GeoPoint) => void
 }
 
 export default function MapPicker({
-  pickup, destination, driverLocation, selection, onSelect, onLocate,
+  pickup, destination, driverLocation, routeCoordinates, selection, onSelect, onLocate,
 }: Props) {
   const container = useRef<HTMLDivElement>(null)
   const map = useRef<MapLibreMap | null>(null)
   const markers = useRef<{ pickup?: Marker; destination?: Marker; driver?: Marker }>({})
   const selectRef = useRef(onSelect)
+  const routeRef = useRef(routeCoordinates)
   selectRef.current = onSelect
+  routeRef.current = routeCoordinates
 
   useEffect(() => {
     if (!container.current || map.current) return
@@ -33,6 +36,27 @@ export default function MapPicker({
     })
     map.current = instance
     instance.addControl(new NavigationControl({ showCompass: false }), 'top-right')
+    instance.on('load', () => {
+      if (!instance.getSource('mithaq-route')) {
+        instance.addSource('mithaq-route', {
+          type: 'geojson',
+          data: { type: 'FeatureCollection', features: [] },
+        })
+        instance.addLayer({
+          id: 'mithaq-route-line', type: 'line', source: 'mithaq-route',
+          layout: { 'line-cap': 'round', 'line-join': 'round' },
+          paint: { 'line-color': '#24885b', 'line-width': 5, 'line-opacity': 0.88 },
+        })
+      }
+      const source = instance.getSource('mithaq-route') as GeoJSONSource
+      source.setData({
+        type: 'FeatureCollection',
+        features: routeRef.current?.length ? [{
+          type: 'Feature', properties: {},
+          geometry: { type: 'LineString', coordinates: routeRef.current },
+        }] : [],
+      })
+    })
     instance.on('click', event => {
       selectRef.current({ latitude: event.lngLat.lat, longitude: event.lngLat.lng })
     })
@@ -73,6 +97,18 @@ export default function MapPicker({
     update('destination', destination, '#d66e58', 'الوجهة')
     update('driver', driverLocation, '#2465bd', 'موقع السائق')
   }, [pickup, destination, driverLocation])
+
+  useEffect(() => {
+    const source = map.current?.getSource('mithaq-route') as GeoJSONSource | undefined
+    if (!source) return
+    source.setData({
+      type: 'FeatureCollection',
+      features: routeCoordinates?.length ? [{
+        type: 'Feature', properties: {},
+        geometry: { type: 'LineString', coordinates: routeCoordinates },
+      }] : [],
+    })
+  }, [routeCoordinates])
 
   const locate = () => {
     if (!navigator.geolocation) {
