@@ -22,7 +22,7 @@ additional_redirect_urls = ["http://localhost:5173", "https://rdjouahir2-jpg.git
 enable_signup = true
 
 [auth.email]
-enable_signup = true
+enabled = true
 enable_confirmations = false
 
 [functions.create-fare-quote]
