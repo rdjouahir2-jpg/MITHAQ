@@ -19,13 +19,13 @@ function validCoordinate(value: unknown, min: number, max: number): value is num
 
 Deno.serve(async (req: Request) => {
   const configuredOrigin = Deno.env.get("ALLOWED_ORIGIN");
-  const requestOrigin = req.headers.get("origin") ?? "*";
+  const requestOrigin = req.headers.get("origin");
   const allowedOrigin = configuredOrigin ?? "null";
 
   if (!configuredOrigin) {
     return json(503, { error: "allowed_origin_not_configured" }, "null");
   }
-  if (requestOrigin !== configuredOrigin) {
+  if (requestOrigin && requestOrigin !== configuredOrigin) {
     return json(403, { error: "origin_not_allowed" }, configuredOrigin);
   }
   if (req.method === "OPTIONS") {
