@@ -34,18 +34,16 @@ Deno.serve(async (req: Request) => {
 
   try {
     const now = new Date().toISOString();
-    const { data: expiredOffers, error: expiredError } = await admin
-      .from("ride_offers")
-      .select("ride_id")
-      .eq("status", "sent")
-      .lte("expires_at", now)
+    const { data: offeredRides, error: offeredError } = await admin
+      .from("rides")
+      .select("id")
+      .eq("status", "offered")
       .limit(200);
-    if (expiredError) throw expiredError;
+    if (offeredError) throw offeredError;
 
-    const expiredRideIds = [...new Set((expiredOffers ?? []).map(row => row.ride_id))];
     let expiredCount = 0;
-    for (const rideId of expiredRideIds) {
-      const { data, error } = await admin.rpc("expire_ride_offers", { p_ride_id: rideId });
+    for (const ride of offeredRides ?? []) {
+      const { data, error } = await admin.rpc("expire_ride_offers", { p_ride_id: ride.id });
       if (error) throw error;
       expiredCount += Number(data ?? 0);
     }
