@@ -23,7 +23,7 @@ supabase link --project-ref YOUR_TEST_PROJECT_REF
 supabase db push
 ```
 
-The repository currently contains migrations `202611100001` through `202611100022`. They install PostGIS and pgcrypto in the `extensions` schema, create RLS-protected tables, ride commands, dispatch, driver onboarding, service-area pricing, tracking, admin workflows, safety reporting, post-trip ratings, and offer-decline/driver-location lifecycle guardrails.
+The repository currently contains migrations `202611100001` through `202611100023`. They install PostGIS and pgcrypto in the `extensions` schema, create RLS-protected tables, ride commands, dispatch, driver onboarding, service-area pricing, tracking, admin workflows, safety reporting, post-trip ratings, and offer-decline/driver-location lifecycle guardrails.
 
 Run the database test suite locally before linking any real project:
 
@@ -121,7 +121,7 @@ For a tiny, non-commercial closed test only, `ROUTING_BASE_URL=https://router.pr
 
 ## 6. Schedule dispatch maintenance
 
-The `dispatch-maintenance` function expires timed-out offers, retries recent requests that did not find a driver, and removes old expired fare quotes. Configure a scheduled HTTP POST in Supabase Cron or a trusted external scheduler to call:
+The `dispatch-maintenance` function expires timed-out offers, retries recent requests that did not find a driver, removes old expired fare quotes, and deletes driver GPS fixes older than five minutes. A database trigger also deletes the current driver location immediately when the driver goes offline. Configure a scheduled HTTP POST in Supabase Cron or a trusted external scheduler to call:
 
 ```
 https://YOUR_PROJECT_REF.supabase.co/functions/v1/dispatch-maintenance
