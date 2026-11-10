@@ -76,7 +76,7 @@ jobs:
             'https://rdjouahir2-jpg.github.io' \
             'https://router.project-osrm.org' \
             "$CRON_SECRET" > "$RUNNER_TEMP/mithaq-function-secrets.env"
-          supabase secrets set --project-ref bzoubheoooszhzajzsur --env-file "$RUNNER_TEMP/mithaq-function-secrets.env"
+          supabase secrets set --project-ref bzoubheoooszhzajzsur --env-file "$RUNNER_TEMP/mithaq-function-secrets.env" --yes
           rm -f "$RUNNER_TEMP/mithaq-function-secrets.env"
 
       - name: Deploy fare quote function
