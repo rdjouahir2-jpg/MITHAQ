@@ -521,7 +521,7 @@ export default function App() {
         </div>}
 
         {screen === 'driver' && <div className="driver-grid">
-          <section className="panel driver-status"><span className="section-kicker">ملف السائق</span><h2>{driverProfile ? driverProfile.onboarding_status === 'approved' ? 'سائق معتمد' : 'ملف قيد المراجعة' : 'انضم كسائق'}</h2>
+          <section className="panel driver-status"><span className="section-kicker">ملف السائق</span><h2>{driverProfile ? driverProfile.onboarding_status === 'approved' ? 'مقبول في بيئة الاختبار' : 'ملف قيد المراجعة' : 'انضم كسائق'}</h2>
             {!driverProfile && <><p>ابدأ بإرسال طلب انضمام. يجب أن يكون حسابك مفعّلاً.</p><button className="primary-btn" disabled={busy || profile?.account_status !== 'active'} onClick={applyDriver}>طلب الانضمام كسائق</button></>}
             {driverProfile && driverProfile.onboarding_status !== 'approved' && <div className="alert warning">لا يمكنك استقبال الرحلات حتى اعتماد ملف السائق والمركبة من الإدارة.</div>}
             {driverProfile?.onboarding_status === 'approved' && <>
@@ -553,6 +553,7 @@ export default function App() {
 
         {screen === 'admin' && roles.includes('admin') && <div className="admin-grid">
           <section className="panel admin-note"><span className="section-kicker">المراجعة الإدارية</span><h2>الحسابات المعلقة ({accounts.length})</h2>
+            <p className="muted">تفعيل الحساب أو اعتماد المركبة هنا مخصص للاختبار فقط ولا يمنح أي رخصة نقل أو تأمين.</p>
             {!accounts.length && <p className="muted">لا توجد حسابات تنتظر التفعيل.</p>}
             {accounts.map(account => <div className="admin-row" key={account.user_id}><div><b>{account.display_name || 'بدون اسم'}</b><small>{account.user_id}</small></div><button className="primary-btn" disabled={busy} onClick={() => reviewAccount(account.user_id)}>تفعيل</button></div>)}
           </section>
