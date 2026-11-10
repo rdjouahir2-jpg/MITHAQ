@@ -27,14 +27,14 @@ Updated: 2026-11-10
 - [x] Twenty ordered SQL migrations, Supabase local configuration, pgTAP security tests, and GitHub Actions database-test workflow.
 - [x] Deno type-check workflow for both Edge Functions.
 - [x] Dependency lockfile generation integrated into CI; lockfile commit/push must complete successfully before it is considered persisted.
-- [x] GitHub Pages build receives only public Supabase URL/anon-key repository variables; no service-role secret is required by the browser.
+- [x] GitHub Pages build reads a dedicated public-only Supabase config file; no service-role secret is required by the browser.
 
 ## Not yet deployed or independently verified
 
 - [ ] Create and connect a dedicated Supabase test project.
 - [ ] Complete a full successful local database migration run and pgTAP test run after the latest migration changes, including the new ratings migration.
 - [ ] Confirm PostGIS, Realtime publication, and function grants on the hosted test project.
-- [ ] Add GitHub Actions repository variables `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`.
+- [ ] Fill `src/lib/public-config.ts` with the new test project's public URL and anon/publishable key after the Supabase project is connected.
 - [ ] Configure the test service-area polygon and its fare policy.
 - [ ] Deploy `create-fare-quote` and `dispatch-maintenance` with server-side secrets.
 - [ ] Schedule the dispatch maintenance function with a private cron secret.
