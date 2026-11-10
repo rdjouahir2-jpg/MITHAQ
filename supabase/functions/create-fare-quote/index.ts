@@ -133,6 +133,12 @@ Deno.serve(async (req: Request) => {
       return json(503, { error: "no_active_area_fare_policy" }, allowedOrigin);
     }
 
+    const { data: routeSlot, error: routeSlotError } = await admin.rpc("claim_routing_request_slot");
+    if (routeSlotError) throw routeSlotError;
+    if (routeSlot !== true) {
+      return json(429, { error: "routing_rate_limited", retry_after_seconds: 1 }, allowedOrigin);
+    }
+
     let routeUrl: URL;
     try {
       routeUrl = new URL(
