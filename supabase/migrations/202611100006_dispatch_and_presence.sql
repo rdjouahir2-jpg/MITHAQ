@@ -176,6 +176,15 @@ begin
     return 0;
   end if;
 
+  if exists (
+    select 1 from public.rides other_ride
+    where other_ride.passenger_id = v_ride.passenger_id
+      and other_ride.id <> v_ride.id
+      and other_ride.status in ('requested','offered','accepted','driver_arriving','arrived','boarded','in_progress')
+  ) then
+    return 0;
+  end if;
+
   -- Coordinates are extracted from the PostGIS point stored on the ride.
   -- No location is returned to the passenger or written to a client-readable table.
   with candidates as (
