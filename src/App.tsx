@@ -363,9 +363,30 @@ export default function App() {
   })
 
   const toggleOnline = () => run(async () => {
-    const result = await setDriverAvailability(!driverOnline)
-    setDriverOnline(result === 'online')
-    setNotice(result === 'online' ? 'أصبحت متاحًا. اسمح للموقع بالعمل لإظهارك في المطابقة.' : 'أصبحت غير متاح.')
+    if (!driverOnline) {
+      if (!navigator.geolocation) throw new Error('تحديد الموقع غير مدعوم في هذا المتصفح.')
+      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true, maximumAge: 0, timeout: 15000,
+        })
+      })
+      if (position.coords.accuracy > 100) {
+        throw new Error('دقة الموقع ضعيفة. انتقل إلى مكان مفتوح وحاول مجددًا.')
+      }
+      await setDriverAvailability(true)
+      await recordDriverLocation({
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+        accuracyM: position.coords.accuracy,
+        recordedAt: new Date(position.timestamp).toISOString(),
+      })
+      await refreshData(user!.id)
+      setNotice('أصبحت متاحًا. سيُحدّث الهاتف موقعك أثناء بقاء التطبيق مفتوحًا.')
+    } else {
+      await setDriverAvailability(false)
+      await refreshData(user!.id)
+      setNotice('أصبحت غير متاح.')
+    }
   })
 
   const applyDriver = () => run(async () => {
