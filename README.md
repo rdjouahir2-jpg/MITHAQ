@@ -30,7 +30,7 @@ npm run build
 npm run preview
 ```
 
-## Backend setup status
+## Engineering foundation added (2026-11-10)\n\n- Added a pure TypeScript ride-domain module with an explicit status-transition policy, actor permissions, money validation in integer minor units, and ride snapshot invariants (`src/domain/ride.ts`).\n- Added an open-source foundations review with upstream licence checks and reuse boundaries (`docs/OPEN_SOURCE_BASES.md`).\n- These rules currently run only as client/domain code. They are **not** a substitute for authenticated server-side enforcement, transactional dispatch, or a live backend.\n\n## Backend setup status
 
 The backend is not connected yet. The next integration is Supabase (PostgreSQL, Auth, Realtime, and Row Level Security). Create a Supabase project, apply the migration in `supabase/migrations`, then add the project URL and publishable/anon key to a local `.env` file based on `.env.example`. Never expose a service-role key in the browser.
 
