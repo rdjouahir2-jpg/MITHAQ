@@ -34,6 +34,8 @@ type Offer = {
   expires_at: string
 }
 type AdminAccount = { user_id: string; display_name: string; created_at: string }
+type AdminRide = { ride_id: string; passenger_name: string; driver_name: string | null; pickup_label: string; destination_label: string; ride_status: string; quoted_amount_minor: number; currency_code: string; requested_at: string; completed_at: string | null }
+type SafetyReport = { report_id: string; ride_id: string | null; reporter_name: string; category: string; severity: string; description: string; report_status: string; created_at: string }
 type AdminDriver = {
   driver_id: string; user_id: string; display_name: string; account_status: string
   onboarding_status: string; vehicle_id: string | null; vehicle_make: string | null
@@ -70,6 +72,9 @@ export default function App() {
   const [offers, setOffers] = useState<Offer[]>([])
   const [accounts, setAccounts] = useState<AdminAccount[]>([])
   const [drivers, setDrivers] = useState<AdminDriver[]>([])
+  const [adminRides, setAdminRides] = useState<AdminRide[]>([])
+  const [safetyReports, setSafetyReports] = useState<SafetyReport[]>([])
+  const [reportDescription, setReportDescription] = useState('')
   const [tracking, setTracking] = useState<Tracking | null>(null)
   const [screen, setScreen] = useState<'passenger' | 'driver' | 'admin'>('passenger')
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin')
@@ -136,17 +141,25 @@ export default function App() {
     }
 
     if (nextRoles.includes('admin')) {
-      const [accountResult, driverQueueResult] = await Promise.all([
+      const [accountResult, driverQueueResult, rideResult, safetyResult] = await Promise.all([
         supabase.rpc('admin_list_pending_accounts'),
         supabase.rpc('admin_list_driver_applications'),
+        supabase.rpc('admin_list_recent_rides'),
+        supabase.rpc('admin_list_safety_reports'),
       ])
       if (accountResult.error) throw accountResult.error
       if (driverQueueResult.error) throw driverQueueResult.error
+      if (rideResult.error) throw rideResult.error
+      if (safetyResult.error) throw safetyResult.error
+      setAdminRides((rideResult.data ?? []) as AdminRide[])
+      setSafetyReports((safetyResult.data ?? []) as SafetyReport[])
       setAccounts((accountResult.data ?? []) as AdminAccount[])
       setDrivers((driverQueueResult.data ?? []) as AdminDriver[])
     } else {
       setAccounts([])
       setDrivers([])
+      setAdminRides([])
+      setSafetyReports([])
     }
   }, [])
 
@@ -348,6 +361,26 @@ export default function App() {
     await refreshData(user!.id)
   })
 
+  const submitSafetyReport = (rideId: string | null) => run(async () => {
+    if (reportDescription.trim().length < 5) throw new Error('اكتب تفاصيل البلاغ (5 أحرف على الأقل).')
+    const { error: reportError } = await supabase!.rpc('submit_safety_report', {
+      p_ride_id: rideId, p_category: 'trip_issue', p_severity: 'normal',
+      p_description: reportDescription.trim(),
+    })
+    if (reportError) throw reportError
+    setReportDescription('')
+    setNotice('تم إرسال البلاغ إلى سجل المراجعة في بيئة الاختبار.')
+  })
+
+  const updateSafetyReport = (reportId: string, status: 'investigating' | 'resolved' | 'closed') => run(async () => {
+    const { error: reportError } = await supabase!.rpc('admin_update_safety_report', {
+      p_report_id: reportId, p_status: status,
+      p_reason: status === 'investigating' ? 'بدأت مراجعة البلاغ.' : status === 'resolved' ? 'تمت مراجعة البلاغ وحلّه في بيئة الاختبار.' : 'أُغلق البلاغ بعد المراجعة.',
+    })
+    if (reportError) throw reportError
+    await refreshData(user!.id)
+  })
+
   const reviewAccount = (userId: string) => run(async () => {
     const { error: reviewError } = await supabase!.rpc('admin_set_account_status', {
       p_user_id: userId, p_status: 'active', p_reason: 'تم التحقق اليدوي لحساب بيئة الاختبار.',
@@ -432,6 +465,12 @@ export default function App() {
             <button className="primary-btn" disabled={busy || profile?.account_status !== 'active' || !pickup || !destination} onClick={getQuote}>حساب السعر من الطريق</button>
             {quote && <button className="primary-btn confirm-btn" disabled={busy} onClick={bookRide}>تأكيد طلب الرحلة</button>}
             <p className="microcopy"><ShieldCheck size={14}/> لا توجد مدفوعات إلكترونية في هذه المرحلة.</p>
+            {passengerRide && !['completed','cancelled','expired'].includes(passengerRide.status) && <div className="safety-report-form">
+              <b>الإبلاغ عن مشكلة في الرحلة</b>
+              <textarea value={reportDescription} onChange={e => setReportDescription(e.target.value)} placeholder="اكتب ما حدث باختصار…" rows={2}/>
+              <button className="secondary-btn" disabled={busy || reportDescription.trim().length < 5} onClick={() => submitSafetyReport(passengerRide.id)}>إرسال بلاغ</button>
+              <small>هذه قناة بلاغات داخلية للاختبار وليست خدمة طوارئ.</small>
+            </div>}
             {passengerRide && <div className="ride-summary"><span className="section-kicker">آخر رحلة</span><h3>{statusNames[passengerRide.status] ?? passengerRide.status}</h3><p>{passengerRide.pickup_label} ← {passengerRide.destination_label}</p><b>{money(passengerRide.quoted_amount_minor, passengerRide.currency_code)}</b>{!['completed','cancelled','expired'].includes(passengerRide.status) && <button className="text-button" onClick={() => cancelRide(passengerRide.id)}>إلغاء الرحلة</button>}</div>}
           </section>
           <section className="panel map-panel">
@@ -474,6 +513,13 @@ export default function App() {
           <section className="panel admin-note"><span className="section-kicker">المراجعة الإدارية</span><h2>الحسابات المعلقة ({accounts.length})</h2>
             {!accounts.length && <p className="muted">لا توجد حسابات تنتظر التفعيل.</p>}
             {accounts.map(account => <div className="admin-row" key={account.user_id}><div><b>{account.display_name || 'بدون اسم'}</b><small>{account.user_id}</small></div><button className="primary-btn" disabled={busy} onClick={() => reviewAccount(account.user_id)}>تفعيل</button></div>)}
+          </section>
+          <section className="panel admin-note"><span className="section-kicker">مراقبة الرحلات</span><h2>آخر الرحلات ({adminRides.length})</h2>
+            {adminRides.slice(0,12).map(ride => <div className="admin-row" key={ride.ride_id}><div><b>{ride.passenger_name} · {statusNames[ride.ride_status] ?? ride.ride_status}</b><small>{ride.pickup_label} ← {ride.destination_label} · السائق: {ride.driver_name ?? 'لم يُعيّن'} · {money(ride.quoted_amount_minor, ride.currency_code)}</small></div><small>{time(ride.requested_at)}</small></div>)}
+          </section>
+          <section className="panel admin-note"><span className="section-kicker">السلامة والدعم</span><h2>بلاغات السلامة ({safetyReports.length})</h2>
+            {!safetyReports.length && <p className="muted">لا توجد بلاغات.</p>}
+            {safetyReports.map(report => <div className="admin-row" key={report.report_id}><div><b>{report.severity.toUpperCase()} · {report.reporter_name} · {report.report_status}</b><small>{report.description}</small></div><div className="admin-review-actions"><button className="secondary-btn" disabled={busy} onClick={() => updateSafetyReport(report.report_id,'investigating')}>قيد المراجعة</button><button className="primary-btn" disabled={busy} onClick={() => updateSafetyReport(report.report_id,'resolved')}>تم الحل</button></div></div>)}
           </section>
           <section className="panel admin-note"><span className="section-kicker">اعتماد السائقين</span><h2>طلبات السائقين ({drivers.length})</h2>
             {!drivers.length && <p className="muted">لا توجد طلبات سائقين.</p>}
