@@ -13,7 +13,7 @@
 - Driver application/vehicle submission, audited admin approval, safety-report review, and mutual post-trip ratings.
 - Scheduled maintenance function for expired offers and redispatch retry.
 
-See [the closed-test setup runbook](docs/BACKEND_SETUP.md) before connecting a hosted test project. Review [Algeria-specific legal blockers](docs/ALGERIA_LEGAL_REVIEW.md) before any real-world passenger trial. It explains the one-time admin bootstrap, service-area configuration, Edge Function secrets, scheduler, GitHub Pages variables, and two-phone test sequence.
+See [the closed-test setup runbook](docs/BACKEND_SETUP.md) before connecting a hosted test project. Review [Algeria-specific legal blockers](docs/ALGERIA_LEGAL_REVIEW.md) before any real-world passenger trial. The two-device validation checklist is in [TEST_PLAN.md](docs/TEST_PLAN.md), and the prioritized next features are in [FEATURE_BACKLOG.md](docs/FEATURE_BACKLOG.md). It explains the one-time admin bootstrap, service-area configuration, Edge Function secrets, scheduler, GitHub Pages variables, and two-phone test sequence.
 
 ## Current software status
 
