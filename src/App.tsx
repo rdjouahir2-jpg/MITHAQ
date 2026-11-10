@@ -259,7 +259,7 @@ export default function App() {
       setError('هذا المتصفح لا يدعم تحديد الموقع؛ لا يمكن إدخالك في المطابقة.')
       return
     }
-    const watchId = navigator.geolocation.watchPosition(async position => {
+    const sendLocation = async (position: GeolocationPosition) => {
       if (position.coords.accuracy > 100) return
       try {
         await recordDriverLocation({
@@ -271,10 +271,20 @@ export default function App() {
       } catch (err) {
         setError(err instanceof Error ? err.message : 'تعذر إرسال موقع السائق.')
       }
-    }, geoError => setError(geoError.code === 1 ? 'يجب السماح بالموقع حتى تظهر لك الطلبات القريبة.' : 'تعذر تحديث موقعك.'), {
-      enableHighAccuracy: true, maximumAge: 5000, timeout: 15000,
-    })
-    return () => navigator.geolocation.clearWatch(watchId)
+    }
+    const watchId = navigator.geolocation.watchPosition(sendLocation, geoError => {
+      setError(geoError.code === 1 ? 'يجب السماح بالموقع حتى تظهر لك الطلبات القريبة.' : 'تعذر تحديث موقعك.')
+    }, { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 })
+    // A foreground heartbeat refreshes the fix even when the vehicle is stationary.
+    const heartbeat = window.setInterval(() => {
+      navigator.geolocation.getCurrentPosition(sendLocation, () => undefined, {
+        enableHighAccuracy: true, maximumAge: 0, timeout: 15000,
+      })
+    }, 20000)
+    return () => {
+      navigator.geolocation.clearWatch(watchId)
+      window.clearInterval(heartbeat)
+    }
   }, [driverProfile?.id, driverProfile?.availability_status])
 
   const run = async (action: () => Promise<void>) => {
