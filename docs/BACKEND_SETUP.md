@@ -117,7 +117,7 @@ Configure these Edge Function secrets:
 
 The quote function authenticates the user, checks account standing, validates that both endpoints are in the same active service area, gets a road route, calculates the price from the area's active fare policy, validates the route geometry, and writes a short-lived single-use quote.
 
-The public OSRM demo server and public demo map tiles are not production infrastructure. The current map style is a development-friendly OpenFreeMap style; before public launch, review tile-provider terms and choose a reliable map/routing hosting arrangement.
+For a tiny, non-commercial closed test only, `ROUTING_BASE_URL=https://router.project-osrm.org` can be used without an API key. The OSRM demo-server guidance limits use to reasonable non-commercial requests, says not to exceed one request per second, and provides no uptime/latency guarantee. It must not become MITHAQ's commercial routing dependency: https://github.com/Project-OSRM/osrm-backend/wiki/Demo-server. The current map style is a development-friendly OpenFreeMap style; before public launch, review tile-provider terms and choose a reliable map/routing hosting arrangement.
 
 ## 6. Schedule dispatch maintenance
 
