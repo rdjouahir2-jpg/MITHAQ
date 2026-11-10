@@ -169,27 +169,27 @@ begin
 
   -- Coordinates are extracted from the PostGIS point stored on the ride.
   -- No location is returned to the passenger or written to a client-readable table.
-  with pickup as (
-    select
-      extensions.st_y(v_ride.pickup_point::extensions.geometry) as lat,
-      extensions.st_x(v_ride.pickup_point::extensions.geometry) as lon
-  ),
-  candidates as (
+  with candidates as (
     select d.id as driver_id,
-      6371000 * acos(least(1.0, greatest(-1.0,
-        sin(radians(p.lat)) * sin(radians(l.latitude)) +
-        cos(radians(p.lat)) * cos(radians(l.latitude)) *
-        cos(radians(l.longitude - p.lon))
-      ))) as distance_m
+      extensions.st_distance(
+        extensions.st_setsrid(
+          extensions.st_makepoint(l.longitude, l.latitude), 4326
+        )::extensions.geography,
+        v_ride.pickup_point
+      ) as distance_m
     from public.driver_profiles d
     join public.driver_locations l on l.driver_id = d.id
-    cross join pickup p
     where d.onboarding_status = 'approved'
       and d.availability_status = 'online'
       and l.updated_at >= now() - interval '90 seconds'
       and l.accuracy_m <= 100
-      and abs(l.latitude - p.lat) <= (p_radius_m / 100000.0)
-      and abs(l.longitude - p.lon) <= (p_radius_m / 80000.0)
+      and extensions.st_dwithin(
+        extensions.st_setsrid(
+          extensions.st_makepoint(l.longitude, l.latitude), 4326
+        )::extensions.geography,
+        v_ride.pickup_point,
+        p_radius_m
+      )
       and exists (
         select 1 from public.vehicles v
         where v.driver_id = d.id
@@ -198,7 +198,9 @@ begin
       )
       and not exists (
         select 1 from public.ride_offers o
-        where o.ride_id = v_ride.id and o.driver_id = d.id
+        where o.driver_id = d.id
+          and o.status = 'sent'
+          and o.expires_at > now()
       )
     order by distance_m asc
     limit p_max_drivers
