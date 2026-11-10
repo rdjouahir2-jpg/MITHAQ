@@ -35,7 +35,7 @@ Updated: 2026-11-10
 ## Not yet deployed or independently verified
 
 - [ ] Create and connect a dedicated Supabase test project.
-- [ ] Complete a full successful local database migration run and pgTAP test run after the latest migration changes, including the new ratings migration.
+- [x] All twenty-three migrations applied successfully in local Supabase CI; all 25 pgTAP security-contract assertions passed.
 - [ ] Confirm PostGIS, Realtime publication, and function grants on the hosted test project.
 - [ ] Fill `src/lib/public-config.ts` with the new test project's public URL and anon/publishable key after the Supabase project is connected.
 - [ ] Configure the test service-area polygon and its fare policy.
