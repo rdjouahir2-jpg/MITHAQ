@@ -2,7 +2,7 @@
 -- Run with: supabase test db
 begin;
 create extension if not exists pgtap with schema extensions;
-select extensions.plan(16);
+select extensions.plan(18);
 
 select extensions.has_table('public', 'driver_locations', 'driver location table exists');
 select extensions.ok(
@@ -65,6 +65,14 @@ select extensions.ok(
 select extensions.ok(
   has_function_privilege('authenticated', 'public.submit_ride_rating(uuid,integer,text)', 'EXECUTE'),
   'participants can submit ratings through the guarded RPC'
+);
+select extensions.ok(
+  has_function_privilege('authenticated', 'public.get_my_passenger_ride_details(integer)', 'EXECUTE'),
+  'passengers can request only their own ride details'
+);
+select extensions.ok(
+  has_function_privilege('authenticated', 'public.get_my_driver_ride_details(integer)', 'EXECUTE'),
+  'drivers can request only their assigned ride details'
 );
 select * from extensions.finish();
 rollback;
