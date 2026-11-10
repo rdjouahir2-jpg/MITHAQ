@@ -81,6 +81,13 @@ Deno.serve(async (req: Request) => {
       .lt("expires_at", quoteCleanupBefore);
     if (cleanupError) throw cleanupError;
 
+    const staleLocationBefore = new Date(Date.now() - 5 * 60_000).toISOString();
+    const { error: locationCleanupError } = await admin
+      .from("driver_locations")
+      .delete()
+      .lt("updated_at", staleLocationBefore);
+    if (locationCleanupError) throw locationCleanupError;
+
     return Response.json({
       expired_offers: expiredCount,
       rides_retried: dispatchAttempts,
