@@ -58,3 +58,10 @@
   .admin-review-actions{width:100%;flex-direction:row}
   .admin-review-actions button{flex:1}
 }
+
+
+.safety-report-form{margin-top:18px;padding:14px;border:1px solid #f0e2c7;background:#fffaf0;border-radius:12px;display:flex;flex-direction:column;gap:9px}
+.safety-report-form>b{font-size:12px;color:#775d35}
+.safety-report-form textarea{width:100%;resize:vertical;border:1px solid #eadfc9;border-radius:9px;padding:10px;font:inherit;font-size:11px;color:#31483a;background:#fff}
+.safety-report-form .secondary-btn{background:#f4ead6;color:#74572d}
+.safety-report-form small{font-size:9px;color:#a28c68}
