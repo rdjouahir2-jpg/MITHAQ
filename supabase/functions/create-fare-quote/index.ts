@@ -141,7 +141,8 @@ Deno.serve(async (req: Request) => {
     } catch {
       return json(503, { error: "invalid_routing_configuration" }, allowedOrigin);
     }
-    routeUrl.searchParams.set("overview", "false");
+    routeUrl.searchParams.set("overview", "full");
+    routeUrl.searchParams.set("geometries", "geojson");
     routeUrl.searchParams.set("steps", "false");
 
     const routeResponse = await fetch(routeUrl, {
@@ -159,9 +160,19 @@ Deno.serve(async (req: Request) => {
       : null;
     const distanceM = Math.round(Number(route?.distance));
     const durationS = Math.round(Number(route?.duration));
+    const geometry = route?.geometry;
+    const coordinates = geometry?.type === "LineString" ? geometry.coordinates : null;
+    const validGeometry = Array.isArray(coordinates) &&
+      coordinates.length >= 2 && coordinates.length <= 5000 &&
+      coordinates.every((point: unknown) =>
+        Array.isArray(point) && point.length >= 2 &&
+        validCoordinate(point[0], -180, 180) &&
+        validCoordinate(point[1], -90, 90)
+      );
     if (
       !Number.isSafeInteger(distanceM) || distanceM <= 0 || distanceM > 300_000 ||
-      !Number.isSafeInteger(durationS) || durationS <= 0 || durationS > 28_800
+      !Number.isSafeInteger(durationS) || durationS <= 0 || durationS > 28_800 ||
+      !validGeometry
     ) {
       return json(422, { error: "route_not_found_or_out_of_service_range" }, allowedOrigin);
     }
@@ -199,6 +210,7 @@ Deno.serve(async (req: Request) => {
         currency_code: policy.currency_code,
         route_distance_m: distanceM,
         route_duration_s: durationS,
+        route_geometry: geometry,
         fare_policy_version: policy.version,
         service_area_id: policy.service_area_id,
         expires_at: expiresAt,
@@ -214,6 +226,7 @@ Deno.serve(async (req: Request) => {
       currency_code: quote.currency_code,
       route_distance_m: quote.route_distance_m,
       route_duration_s: quote.route_duration_s,
+      route_geometry: geometry,
       expires_at: quote.expires_at,
     }, allowedOrigin);
   } catch (error) {
