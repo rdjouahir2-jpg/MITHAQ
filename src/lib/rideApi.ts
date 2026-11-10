@@ -14,6 +14,7 @@ export type FareQuote = {
   currency_code: string
   route_distance_m: number
   route_duration_s: number
+  route_geometry: { type: 'LineString'; coordinates: [number, number][] }
   expires_at: string
 }
 
