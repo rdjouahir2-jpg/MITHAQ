@@ -37,6 +37,14 @@ Deno.test('terminal rides cannot be reopened', () => {
   throws(() => assertTransition({ from: 'completed', to: 'cancelled', actor: 'admin' }), 'Invalid ride transition')
 })
 
+
+Deno.test('no-driver result is retryable by the dispatch system', () => {
+  equal(canTransition({ from: 'no_driver_found', to: 'offered', actor: 'system' }), true, 'retry dispatch')
+  equal(canTransition({ from: 'no_driver_found', to: 'cancelled', actor: 'passenger' }), true, 'passenger can cancel while retrying')
+  equal(canTransition({ from: 'no_driver_found', to: 'accepted', actor: 'driver' }), false, 'driver cannot accept without a new offer')
+  throws(() => assertTransition({ from: 'no_driver_found', to: 'accepted', actor: 'driver' }), 'Invalid ride transition')
+})
+
 Deno.test('money uses non-negative safe integer minor units', () => {
   assertMoneyAmount(0)
   assertMoneyAmount(12550)
