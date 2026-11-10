@@ -65,3 +65,11 @@
 .safety-report-form textarea{width:100%;resize:vertical;border:1px solid #eadfc9;border-radius:9px;padding:10px;font:inherit;font-size:11px;color:#31483a;background:#fff}
 .safety-report-form .secondary-btn{background:#f4ead6;color:#74572d}
 .safety-report-form small{font-size:9px;color:#a28c68}
+
+
+.rating-panel{margin-top:16px;display:flex;flex-direction:column;gap:12px}
+.rating-panel h2{margin:0}
+.rating-choices{display:flex;gap:8px}
+.rating-choices button{width:42px;height:42px;border-radius:50%;border:1px solid #dfe9e2;background:#fff;color:#557365;font:inherit;font-weight:750}
+.rating-choices button.chosen{background:#eaf4ed;border-color:#2f7950;color:#1c5b39}
+.rating-panel textarea{width:100%;border:1px solid #e0e9e2;border-radius:10px;padding:11px;font:inherit;font-size:11px;resize:vertical}
