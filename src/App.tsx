@@ -115,7 +115,7 @@ export default function App() {
     () => driverRides.find(ride => ride.status === 'completed') ?? null,
     [driverRides],
   )
-  const ratingRide = screen === 'driver' ? completedDriverRide : passengerRide?.status === 'completed' ? passengerRide : null
+  const ratingRide = screen === 'driver' ? (!driverRide ? completedDriverRide : null) : passengerRide?.status === 'completed' ? passengerRide : null
 
   const refreshData = useCallback(async (userId: string) => {
     if (!supabase) return
@@ -507,7 +507,7 @@ export default function App() {
               <small>هذه قناة بلاغات داخلية للاختبار وليست خدمة طوارئ.</small>
             </div>}
             {ratingRide && screen === 'passenger' && <RatingPanel ratingStatus={ratingStatus} ratingScore={ratingScore} setRatingScore={setRatingScore} ratingComment={ratingComment} setRatingComment={setRatingComment} busy={busy} submit={submitRating}/>}
-            {passengerRide && <div className="ride-summary"><span className="section-kicker">آخر رحلة</span><h3>{statusNames[passengerRide.status] ?? passengerRide.status}</h3><p>{passengerRide.pickup_label} ← {passengerRide.destination_label}</p><b>{money(passengerRide.quoted_amount_minor, passengerRide.currency_code)}</b>{!['completed','cancelled','expired'].includes(passengerRide.status) && <button className="text-button" onClick={() => cancelRide(passengerRide.id)}>إلغاء الرحلة</button>}</div>}
+            {passengerRide && <div className="ride-summary"><span className="section-kicker">آخر رحلة</span><h3>{statusNames[passengerRide.status] ?? passengerRide.status}</h3><p>{passengerRide.pickup_label} ← {passengerRide.destination_label}</p><b>{money(passengerRide.quoted_amount_minor, passengerRide.currency_code)}</b>{!['completed','cancelled','expired','boarded','in_progress'].includes(passengerRide.status) && <button className="text-button" onClick={() => cancelRide(passengerRide.id)}>إلغاء الرحلة</button>}</div>}
           </section>
           <section className="panel map-panel">
             <div className="map-top"><span className="map-tag"><MapPin size={14}/> خريطة فعلية</span><span className="map-muted">اختر النقاط مباشرة</span></div>
