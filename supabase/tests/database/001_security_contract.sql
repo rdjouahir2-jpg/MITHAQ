@@ -2,7 +2,7 @@
 -- Run with: supabase test db
 begin;
 create extension if not exists pgtap with schema extensions;
-select extensions.plan(21);
+select extensions.plan(23);
 
 select extensions.has_table('public', 'driver_locations', 'driver location table exists');
 select extensions.ok(
@@ -85,6 +85,14 @@ select extensions.ok(
 select extensions.ok(
   not has_function_privilege('authenticated', 'public.validate_route_geometry_in_area(uuid,jsonb)', 'EXECUTE'),
   'clients cannot bypass service-area route validation'
+);
+select extensions.ok(
+  has_function_privilege('service_role', 'public.claim_routing_request_slot()', 'EXECUTE'),
+  'only the trusted server role can claim a routing slot'
+);
+select extensions.ok(
+  not has_function_privilege('authenticated', 'public.claim_routing_request_slot()', 'EXECUTE'),
+  'clients cannot bypass the shared routing rate gate'
 );
 select * from extensions.finish();
 rollback;
