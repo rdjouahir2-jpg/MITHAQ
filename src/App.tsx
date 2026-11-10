@@ -242,6 +242,21 @@ export default function App() {
   }, [user, passengerRide?.id, passengerRide?.status])
 
   useEffect(() => {
+    if (!quote) return
+    const remaining = new Date(quote.expires_at).getTime() - Date.now()
+    if (remaining <= 0) {
+      setQuote(null)
+      setNotice('انتهت صلاحية عرض السعر. احسبه من جديد قبل تأكيد الرحلة.')
+      return
+    }
+    const timer = window.setTimeout(() => {
+      setQuote(null)
+      setNotice('انتهت صلاحية عرض السعر. احسبه من جديد قبل تأكيد الرحلة.')
+    }, remaining)
+    return () => window.clearTimeout(timer)
+  }, [quote])
+
+  useEffect(() => {
     if (!supabase || !user || !ratingRide) { setRatingStatus(null); return }
     let mounted = true
     supabase.rpc('get_my_ride_rating_status', { p_ride_id: ratingRide.id }).then(({ data, error: ratingError }) => {
@@ -329,6 +344,10 @@ export default function App() {
 
   const bookRide = () => run(async () => {
     if (!quote) throw new Error('احسب السعر أولاً.')
+    if (new Date(quote.expires_at).getTime() <= Date.now()) {
+      setQuote(null)
+      throw new Error('انتهت صلاحية عرض السعر. احسبه من جديد.')
+    }
     const result = await requestRide(quote.quote_id)
     setQuote(null)
     setNotice(`تم إنشاء الطلب. رمز الصعود الخاص بك: ${result.boarding_pin}`)
