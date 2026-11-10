@@ -167,6 +167,15 @@ begin
     raise exception 'ride_not_dispatchable' using errcode = 'P0001';
   end if;
 
+  if v_ride.status = 'no_driver_found' and exists (
+    select 1 from public.ride_events e
+    where e.ride_id = v_ride.id
+      and e.event_type = 'dispatch_no_driver_found'
+      and e.created_at > now() - interval '90 seconds'
+  ) then
+    return 0;
+  end if;
+
   -- Coordinates are extracted from the PostGIS point stored on the ride.
   -- No location is returned to the passenger or written to a client-readable table.
   with candidates as (
@@ -179,6 +188,7 @@ begin
       ) as distance_m
     from public.driver_profiles d
     join public.driver_locations l on l.driver_id = d.id
+    join public.profiles p on p.id = d.user_id and p.account_status = 'active'
     where d.onboarding_status = 'approved'
       and d.availability_status = 'online'
       and l.updated_at >= now() - interval '90 seconds'
