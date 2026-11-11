@@ -48,7 +48,10 @@ type SupportMessage = { id: string; ticket_id: string; body: string; is_staff: b
 type UserNotification = { id: string; notification_type: string; title: string; body: string; created_at: string; read_at: string | null }
 type AdminSupportTicket = { ticket_id: string; user_id: string; requester_name: string; ride_id: string | null; category: string; initial_message: string; ticket_status: string; assigned_to: string | null; created_at: string; updated_at: string }
 type RatingStatus = { has_rated: boolean; score: number | null; comment: string | null }
-type DriverEarning = { ride_id: string; pickup_label: string; destination_label: string; completed_at: string; gross_fare_minor: number; currency_code: string }
+type DriverEarning = { ride_id: string; pickup_label: string; destination_label: string; completed_at: string; gross_fare_minor: number; commission_minor: number; driver_net_minor: number; payment_status: string; commission_status: string; currency_code: string }
+type DriverFinancialSummary = { gross_earned_minor: number; commission_due_minor: number; payout_available_minor: number; payout_pending_minor: number; currency_code: string }
+type AdminFinancial = { ride_id: string; driver_id: string; driver_name: string; gross_fare_minor: number; commission_minor: number; driver_net_minor: number; payment_method: string; payment_status: string; commission_status: string; currency_code: string; created_at: string }
+type AdminPayout = { payout_id: string; driver_id: string; driver_name: string; amount_minor: number; currency_code: string; payout_status: string; payout_reference: string | null; requested_at: string }
 type AdminDriver = {
   driver_id: string; user_id: string; display_name: string; account_status: string
   onboarding_status: string; vehicle_id: string | null; vehicle_make: string | null
@@ -91,6 +94,14 @@ export default function App() {
   const [passengerRides, setPassengerRides] = useState<Ride[]>([])
   const [driverRides, setDriverRides] = useState<Ride[]>([])
   const [driverEarnings, setDriverEarnings] = useState<DriverEarning[]>([])
+  const [driverFinance, setDriverFinance] = useState<DriverFinancialSummary | null>(null)
+  const [driverPayoutAmount, setDriverPayoutAmount] = useState('')
+  const [adminFinancials, setAdminFinancials] = useState<AdminFinancial[]>([])
+  const [adminPayouts, setAdminPayouts] = useState<AdminPayout[]>([])
+  const [commissionBps, setCommissionBps] = useState<number | null>(null)
+  const [commissionDraft, setCommissionDraft] = useState('10')
+  const [paymentReferences, setPaymentReferences] = useState<Record<string, string>>({})
+  const [payoutReferences, setPayoutReferences] = useState<Record<string, string>>({})
   const [offers, setOffers] = useState<Offer[]>([])
   const [negotiations, setNegotiations] = useState<FareNegotiation[]>([])
   const [counterAmounts, setCounterAmounts] = useState<Record<string, string>>({})
@@ -183,16 +194,20 @@ export default function App() {
     setNegotiations(negotiationRows)
 
     if (driverResult.data) {
-      const [offersResult, driverRidesResult, earningsResult, documentsResult] = await Promise.all([
+      const [offersResult, driverRidesResult, earningsResult, documentsResult, financeResult] = await Promise.all([
         supabase.rpc('get_my_driver_offers'),
         supabase.rpc('get_my_driver_ride_details', { p_limit: 20 }),
         supabase.rpc('get_my_driver_earnings', { p_limit: 20 }),
         supabase.rpc('get_my_driver_documents'),
+        supabase.rpc('get_my_driver_financial_summary'),
       ])
       if (offersResult.error) throw offersResult.error
       if (driverRidesResult.error) throw driverRidesResult.error
       if (earningsResult.error) throw earningsResult.error
       if (documentsResult.error) throw documentsResult.error
+      if (financeResult.error) throw financeResult.error
+      const financeRow = Array.isArray(financeResult.data) ? financeResult.data[0] : financeResult.data
+      setDriverFinance((financeRow as DriverFinancialSummary | null) ?? null)
       setMyDriverDocuments((documentsResult.data ?? []) as DriverDocument[])
       setOffers((offersResult.data ?? []) as Offer[])
       setDriverRides((driverRidesResult.data ?? []) as Ride[])
@@ -201,17 +216,21 @@ export default function App() {
       setOffers([])
       setDriverRides([])
       setDriverEarnings([])
+      setDriverFinance(null)
       setMyDriverDocuments([])
     }
 
     if (nextRoles.includes('admin')) {
-      const [accountResult, driverQueueResult, rideResult, safetyResult, documentsResult, supportResult] = await Promise.all([
+      const [accountResult, driverQueueResult, rideResult, safetyResult, documentsResult, supportResult, financeResult, payoutResult, commissionResult] = await Promise.all([
         supabase.rpc('admin_list_pending_accounts'),
         supabase.rpc('admin_list_driver_applications'),
         supabase.rpc('admin_list_recent_rides'),
         supabase.rpc('admin_list_safety_reports'),
         supabase.rpc('admin_list_driver_documents'),
         supabase.rpc('admin_list_support_tickets'),
+        supabase.rpc('admin_list_financials'),
+        supabase.rpc('admin_list_payout_requests'),
+        supabase.rpc('admin_get_commission_policy'),
       ])
       if (accountResult.error) throw accountResult.error
       if (driverQueueResult.error) throw driverQueueResult.error
@@ -219,6 +238,14 @@ export default function App() {
       if (safetyResult.error) throw safetyResult.error
       if (documentsResult.error) throw documentsResult.error
       if (supportResult.error) throw supportResult.error
+      if (financeResult.error) throw financeResult.error
+      if (payoutResult.error) throw payoutResult.error
+      if (commissionResult.error) throw commissionResult.error
+      const policyRow = Array.isArray(commissionResult.data) ? commissionResult.data[0] : commissionResult.data
+      setCommissionBps(policyRow?.commission_bps ?? null)
+      if (policyRow?.commission_bps !== undefined) setCommissionDraft(String(Number(policyRow.commission_bps) / 100))
+      setAdminFinancials((financeResult.data ?? []) as AdminFinancial[])
+      setAdminPayouts((payoutResult.data ?? []) as AdminPayout[])
       setAdminSupportTickets((supportResult.data ?? []) as AdminSupportTicket[])
       setDriverDocuments((documentsResult.data ?? []) as DriverDocument[])
       setAdminRides((rideResult.data ?? []) as AdminRide[])
@@ -232,6 +259,9 @@ export default function App() {
       setAdminRides([])
       setSafetyReports([])
       setAdminSupportTickets([])
+      setAdminFinancials([])
+      setAdminPayouts([])
+      setCommissionBps(null)
     }
   }, [])
 
@@ -250,7 +280,7 @@ export default function App() {
         setProfile(null); setRoles([]); setDriverProfile(null)
         setPassengerRides([]); setDriverRides([]); setOffers([]); setNegotiations([])
         setDriverEarnings([]); setDriverDocuments([]); setMyDriverDocuments([]); setAccounts([])
-        setAdminRides([]); setSafetyReports([]); setSupportTickets([]); setSupportMessages([]); setNotifications([]); setAdminSupportTickets([]); setDocumentFile(null); setDocumentPreviewUrl('')
+        setAdminRides([]); setSafetyReports([]); setSupportTickets([]); setSupportMessages([]); setNotifications([]); setAdminSupportTickets([]); setAdminFinancials([]); setAdminPayouts([]); setDriverFinance(null); setDocumentFile(null); setDocumentPreviewUrl('')
       }
     })
     return () => { alive = false; authListener.subscription.unsubscribe() }
@@ -662,6 +692,57 @@ export default function App() {
     await refreshData(user!.id)
   })
 
+
+  const requestDriverPayout = () => run(async () => {
+    const amountDzd = Number(driverPayoutAmount)
+    const amountMinor = Math.round(amountDzd * 100)
+    if (!Number.isFinite(amountDzd) || amountDzd <= 0 || !Number.isSafeInteger(amountMinor)) {
+      throw new Error('أدخل مبلغ تسوية صحيحاً بالدينار الجزائري.')
+    }
+    const { error: payoutError } = await supabase!.rpc('request_driver_payout', { p_amount_minor: amountMinor })
+    if (payoutError) throw payoutError
+    setDriverPayoutAmount('')
+    await refreshData(user!.id)
+    setNotice('تم إرسال طلب التسوية إلى الإدارة للمراجعة.')
+  })
+
+  const updatePlatformCommission = () => run(async () => {
+    const percent = Number(commissionDraft)
+    const basisPoints = Math.round(percent * 100)
+    if (!Number.isFinite(percent) || percent < 0 || percent > 30 || !Number.isSafeInteger(basisPoints)) {
+      throw new Error('العمولة يجب أن تكون بين 0% و30%.')
+    }
+    const { error: commissionError } = await supabase!.rpc('admin_set_platform_commission', { p_commission_bps: basisPoints })
+    if (commissionError) throw commissionError
+    await refreshData(user!.id)
+    setNotice('تم حفظ سياسة العمولة الجديدة. ستُطبق على الرحلات المكتملة لاحقاً فقط.')
+  })
+
+  const recordRidePayment = (rideId: string, method: 'cash_to_driver' | 'manual_transfer_to_platform') => run(async () => {
+    const reference = (paymentReferences[rideId] ?? '').trim()
+    if (reference.length < 3) throw new Error('أدخل مرجع التحصيل أو رقم الإيصال.')
+    const { error: paymentError } = await supabase!.rpc('admin_record_ride_payment', {
+      p_ride_id: rideId, p_payment_method: method, p_reference: reference,
+    })
+    if (paymentError) throw paymentError
+    setPaymentReferences(items => ({ ...items, [rideId]: '' }))
+    await refreshData(user!.id)
+    setNotice('تم تسجيل التحصيل وإنشاء القيد المالي.')
+  })
+
+  const processDriverPayout = (payoutId: string, decision: 'approve' | 'pay' | 'reject') => run(async () => {
+    const reference = (payoutReferences[payoutId] ?? '').trim()
+    if (decision === 'pay' && reference.length < 3) throw new Error('أدخل مرجع التحويل قبل تأكيد الدفع.')
+    const { error: payoutError } = await supabase!.rpc('admin_process_driver_payout', {
+      p_payout_id: payoutId, p_decision: decision,
+      p_reference: decision === 'pay' ? reference : null,
+      p_note: decision === 'reject' ? 'تم رفض الطلب بعد المراجعة.' : decision === 'approve' ? 'تمت الموافقة على الطلب.' : 'تم تأكيد التحويل اليدوي.',
+    })
+    if (payoutError) throw payoutError
+    await refreshData(user!.id)
+    setNotice(decision === 'pay' ? 'تم تسجيل تسوية مستحقات السائق.' : decision === 'approve' ? 'تمت الموافقة على طلب التسوية.' : 'تم رفض طلب التسوية.')
+  })
+
   const reviewAccount = (userId: string) => run(async () => {
     const { error: reviewError } = await supabase!.rpc('admin_set_account_status', {
       p_user_id: userId, p_status: 'active', p_reason: 'تم التحقق اليدوي لحساب بيئة الاختبار.',
@@ -838,9 +919,21 @@ export default function App() {
             <p className="muted">المبالغ أدناه هي أجرة الرحلة الإجمالية المسجلة، وليست صافي مستحقاتك بعد العمولة أو التسوية.</p>
             {!driverEarnings.length && <p className="muted">ستظهر هنا الرحلات المكتملة بعد تنفيذ أول رحلة.</p>}
             {driverEarnings.map(item => <div className="admin-row" key={item.ride_id}>
-              <div><b>{money(item.gross_fare_minor, item.currency_code)}</b><small>{item.pickup_label} ← {item.destination_label}</small></div>
-              <small>{time(item.completed_at)}</small>
+              <div><b>الصافي: {money(item.driver_net_minor, item.currency_code)}</b><small>الإجمالي {money(item.gross_fare_minor, item.currency_code)} · العمولة {money(item.commission_minor, item.currency_code)} · {item.pickup_label} ← {item.destination_label}</small></div>
+              <small>{item.payment_status === 'collected' ? 'تم التحصيل' : 'بانتظار تأكيد التحصيل'} · {time(item.completed_at)}</small>
             </div>)}
+          </section>
+
+          <section className="panel">
+            <span className="section-kicker">المستحقات والتسويات</span><h2>ملخصك المالي</h2>
+            {driverFinance && <>
+              <div className="admin-row"><span>إجمالي الأجور</span><b>{money(driverFinance.gross_earned_minor, driverFinance.currency_code)}</b></div>
+              <div className="admin-row"><span>عمولات نقدية مستحقة للمنصة</span><b>{money(driverFinance.commission_due_minor, driverFinance.currency_code)}</b></div>
+              <div className="admin-row"><span>رصيد قابل للتسوية</span><b>{money(driverFinance.payout_available_minor, driverFinance.currency_code)}</b></div>
+              <div className="admin-row"><span>طلبات تسوية قيد المعالجة</span><b>{money(driverFinance.payout_pending_minor, driverFinance.currency_code)}</b></div>
+              <label className="field-label">طلب تحويل مستحقاتك (دج)<input className="wide-input" type="number" min="1" value={driverPayoutAmount} onChange={e => setDriverPayoutAmount(e.target.value)} /></label>
+              <button className="primary-btn" disabled={busy || !driverFinance.payout_available_minor || !driverPayoutAmount} onClick={requestDriverPayout}>إرسال طلب التسوية</button>
+            </>}
           </section>
           <section className="panel offer-card"><span className="section-kicker">العروض الواردة</span><h2>{offers.length} عرض متاح</h2>
             {!offers.length && <p className="muted">ستظهر هنا الطلبات الحقيقية الموجهة إليك عندما تكون معتمداً ومتصلًا وقريبًا من نقطة الانطلاق.</p>}
@@ -865,6 +958,27 @@ export default function App() {
             {!safetyReports.length && <p className="muted">لا توجد بلاغات.</p>}
             {safetyReports.map(report => <div className="admin-row" key={report.report_id}><div><b>{report.severity.toUpperCase()} · {report.reporter_name} · {report.report_status}</b><small>{report.description}</small></div><div className="admin-review-actions"><button className="secondary-btn" disabled={busy} onClick={() => updateSafetyReport(report.report_id,'investigating')}>قيد المراجعة</button><button className="primary-btn" disabled={busy} onClick={() => updateSafetyReport(report.report_id,'resolved')}>تم الحل</button></div></div>)}
           </section>
+
+          <section className="panel admin-note">
+            <span className="section-kicker">المالية والعمولات</span><h2>سياسة العمولة</h2>
+            <p className="muted">النسبة الحالية: {commissionBps === null ? 'غير مهيأة' : (commissionBps / 100).toFixed(2) + '%'} · لا تُطبق التغييرات إلا على الرحلات الجديدة المكتملة.</p>
+            <label className="field-label">العمولة الجديدة (%)<input className="wide-input" type="number" min="0" max="30" step="0.1" value={commissionDraft} onChange={e => setCommissionDraft(e.target.value)} /></label>
+            <button className="primary-btn" disabled={busy} onClick={updatePlatformCommission}>حفظ نسبة العمولة</button>
+            <h3>سجل أجور الرحلات ({adminFinancials.length})</h3>
+            {!adminFinancials.length && <p className="muted">لا توجد قيود مالية بعد.</p>}
+            {adminFinancials.map(finance => <div className="admin-row" key={finance.ride_id}>
+              <div><b>{finance.driver_name} · {money(finance.gross_fare_minor, finance.currency_code)}</b><small>عمولة {money(finance.commission_minor, finance.currency_code)} · صافي السائق {money(finance.driver_net_minor, finance.currency_code)} · {finance.payment_status}</small>
+                {finance.payment_status === 'pending' && <><input className="wide-input" value={paymentReferences[finance.ride_id] ?? ''} onChange={e => setPaymentReferences(items => ({...items,[finance.ride_id]:e.target.value}))} placeholder="مرجع الإيصال أو التحصيل"/><div className="admin-review-actions"><button className="secondary-btn" disabled={busy} onClick={() => recordRidePayment(finance.ride_id,'cash_to_driver')}>نقداً للسائق</button><button className="primary-btn" disabled={busy} onClick={() => recordRidePayment(finance.ride_id,'manual_transfer_to_platform')}>تحصيل للمنصة</button></div></>}
+              </div>
+            </div>)}
+            <h3>طلبات تسوية السائقين ({adminPayouts.length})</h3>
+            {!adminPayouts.length && <p className="muted">لا توجد طلبات تسوية.</p>}
+            {adminPayouts.map(payout => <div className="admin-row" key={payout.payout_id}>
+              <div><b>{payout.driver_name} · {money(payout.amount_minor,payout.currency_code)}</b><small>{payout.payout_status} · {time(payout.requested_at)}{payout.payout_reference ? ' · '+payout.payout_reference : ''}</small>
+                {payout.payout_status !== 'paid' && payout.payout_status !== 'rejected' && <><input className="wide-input" value={payoutReferences[payout.payout_id] ?? ''} onChange={e => setPayoutReferences(items => ({...items,[payout.payout_id]:e.target.value}))} placeholder="مرجع التحويل البنكي / البريدي"/><div className="admin-review-actions">{payout.payout_status === 'pending' && <><button className="secondary-btn" disabled={busy} onClick={() => processDriverPayout(payout.payout_id,'approve')}>موافقة</button><button className="secondary-btn" disabled={busy} onClick={() => processDriverPayout(payout.payout_id,'reject')}>رفض</button></>}{payout.payout_status === 'approved' && <button className="primary-btn" disabled={busy} onClick={() => processDriverPayout(payout.payout_id,'pay')}>تأكيد التحويل</button>}</div></>}
+              </div>
+            </div>)}
+          </section>
           <section className="panel admin-note"><span className="section-kicker">مراجعة الوثائق الخاصة</span><h2>وثائق السائقين ({driverDocuments.length})</h2>
             {!driverDocuments.length && <p className="muted">لا توجد وثائق مرفوعة للمراجعة.</p>}
             {driverDocuments.map(doc => <div className="admin-row" key={doc.document_id}><div><b>{doc.display_name || doc.user_id} · {documentNames[doc.document_type] ?? doc.document_type}</b><small>{doc.status === 'approved' ? 'معتمدة' : doc.status === 'rejected' ? 'مرفوضة' : 'قيد المراجعة'} · رُفعت {time(doc.uploaded_at)}{doc.expires_on ? ' · تنتهي ' + doc.expires_on : ''}{doc.review_reason ? ' · ' + doc.review_reason : ''}</small></div><div className="admin-review-actions"><button className="secondary-btn" disabled={busy} onClick={() => previewDriverDocument(doc.object_path!)}>معاينة</button>{doc.status === 'pending' && <><button className="primary-btn" disabled={busy} onClick={() => reviewDriverDocument(doc.document_id,'approved')}>اعتماد</button><button className="secondary-btn" disabled={busy} onClick={() => reviewDriverDocument(doc.document_id,'rejected')}>رفض</button></>}</div></div>)}
@@ -876,7 +990,7 @@ export default function App() {
           </section>
         </div>}
 
-        <footer><span>© MITHAQ</span><span><ShieldCheck size={13}/> بيئة اختبار مغلقة · لا مدفوعات أو رحلات تجارية</span></footer>
+        <footer><span>© MITHAQ</span><span><ShieldCheck size={13}/> بيئة اختبار مغلقة · التسويات يدوية ولا يوجد مزود دفع إلكتروني موصول</span></footer>
       </main>
     </div>
   </div>
