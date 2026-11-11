@@ -696,6 +696,27 @@ export default function App() {
               <p className="microcopy">يلزم السماح بالموقع. أثناء الرحلة النشطة يستمر إرسال الموقع للراكب المعني فقط.</p>
             </>}
           </section>
+          {driverProfile && <section className="panel">
+            <span className="section-kicker">التحقق من الهوية والمركبة</span><h2>وثائق السائق</h2>
+            <p className="muted">ارفع الوثائق الأصلية بصيغة PDF أو JPG أو PNG. الملفات خاصة ولا يطلع عليها إلا حسابك وفريق المراجعة المخوّل. الحد الأقصى 10 ميغابايت للملف.</p>
+            <div className="admin-row"><b>الوثائق المطلوبة</b><small>{requiredDocumentTypes.filter(type => myDriverDocuments.some(doc => doc.document_type === type && doc.status === 'approved' && (!doc.expires_on || doc.expires_on >= new Date().toISOString().slice(0,10)))).length} / 4 معتمدة</small></div>
+            {requiredDocumentTypes.map(type => {
+              const latest = myDriverDocuments.filter(doc => doc.document_type === type).sort((a,b) => b.uploaded_at.localeCompare(a.uploaded_at))[0]
+              return <div className="admin-row" key={type}><div><b>{documentNames[type]}</b><small>{latest ? 'الحالة: ' + (latest.status === 'approved' ? 'معتمدة' : latest.status === 'rejected' ? 'مرفوضة' : 'قيد المراجعة') + ' · ' + (latest.expires_on ? 'صالحة حتى ' + latest.expires_on : 'دون تاريخ انتهاء مسجل') : 'لم تُرفع بعد'}{latest?.review_reason ? ' · ' + latest.review_reason : ''}</small></div></div>
+            })}
+            <label className="auth-field">نوع الوثيقة
+              <select value={documentType} onChange={e => setDocumentType(e.target.value)}>
+                {requiredDocumentTypes.map(type => <option key={type} value={type}>{documentNames[type]}</option>)}
+              </select>
+            </label>
+            <label className="auth-field">الملف
+              <input type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" onChange={e => setDocumentFile(e.target.files?.[0] ?? null)}/>
+            </label>
+            {documentType === 'insurance' && <label className="auth-field">تاريخ انتهاء التأمين
+              <input type="date" value={documentExpiry} min={new Date().toISOString().slice(0,10)} onChange={e => setDocumentExpiry(e.target.value)}/>
+            </label>}
+            <button className="primary-btn" disabled={busy || !documentFile || (documentType === 'insurance' && !documentExpiry)} onClick={submitDriverDocument}>رفع الوثيقة للمراجعة</button>
+          </section>}
           {driverProfile && driverProfile.onboarding_status !== 'approved' && <section className="panel">
             <span className="section-kicker">بيانات المركبة</span><h2>أضف مركبتك</h2>
             <label className="auth-field">الشركة المصنعة<input value={vehicleMake} onChange={e => setVehicleMake(e.target.value)} placeholder="مثلاً: Hyundai"/></label>
@@ -739,9 +760,14 @@ export default function App() {
             {!safetyReports.length && <p className="muted">لا توجد بلاغات.</p>}
             {safetyReports.map(report => <div className="admin-row" key={report.report_id}><div><b>{report.severity.toUpperCase()} · {report.reporter_name} · {report.report_status}</b><small>{report.description}</small></div><div className="admin-review-actions"><button className="secondary-btn" disabled={busy} onClick={() => updateSafetyReport(report.report_id,'investigating')}>قيد المراجعة</button><button className="primary-btn" disabled={busy} onClick={() => updateSafetyReport(report.report_id,'resolved')}>تم الحل</button></div></div>)}
           </section>
+          <section className="panel admin-note"><span className="section-kicker">مراجعة الوثائق الخاصة</span><h2>وثائق السائقين ({driverDocuments.length})</h2>
+            {!driverDocuments.length && <p className="muted">لا توجد وثائق مرفوعة للمراجعة.</p>}
+            {driverDocuments.map(doc => <div className="admin-row" key={doc.document_id}><div><b>{doc.display_name || doc.user_id} · {documentNames[doc.document_type] ?? doc.document_type}</b><small>{doc.status === 'approved' ? 'معتمدة' : doc.status === 'rejected' ? 'مرفوضة' : 'قيد المراجعة'} · رُفعت {time(doc.uploaded_at)}{doc.expires_on ? ' · تنتهي ' + doc.expires_on : ''}{doc.review_reason ? ' · ' + doc.review_reason : ''}</small></div><div className="admin-review-actions"><button className="secondary-btn" disabled={busy} onClick={() => previewDriverDocument(doc.object_path!)}>معاينة</button>{doc.status === 'pending' && <><button className="primary-btn" disabled={busy} onClick={() => reviewDriverDocument(doc.document_id,'approved')}>اعتماد</button><button className="secondary-btn" disabled={busy} onClick={() => reviewDriverDocument(doc.document_id,'rejected')}>رفض</button></>}</div></div>)}
+            {documentPreviewUrl && <p><a href={documentPreviewUrl} target="_blank" rel="noreferrer">فتح الوثيقة (رابط مؤقت 60 ثانية)</a></p>}
+          </section>
           <section className="panel admin-note"><span className="section-kicker">اعتماد السائقين</span><h2>طلبات السائقين ({drivers.length})</h2>
             {!drivers.length && <p className="muted">لا توجد طلبات سائقين.</p>}
-            {drivers.map(driver => <div className="admin-row driver-review" key={driver.driver_id}><div><b>{driver.display_name || 'بدون اسم'} · {driver.onboarding_status}</b><small>{driver.vehicle_make ?? 'لا توجد مركبة'} {driver.vehicle_model ?? ''} · {driver.seat_capacity ?? '—'} مقاعد · المركبة: {driver.vehicle_status ?? 'غير مسجلة'}</small></div><div className="admin-review-actions">{driver.vehicle_id && driver.vehicle_status === 'pending' && <><button className="secondary-btn" disabled={busy} onClick={() => reviewVehicle(driver.vehicle_id!, 'approved')}>اعتماد المركبة</button><button className="secondary-btn" disabled={busy} onClick={() => reviewVehicle(driver.vehicle_id!, 'rejected')}>رفض المركبة</button></>}{driver.onboarding_status !== 'approved' && <><button className="primary-btn" disabled={busy || driver.vehicle_status !== 'approved' || driver.account_status !== 'active'} onClick={() => reviewDriver(driver.driver_id, 'approved')}>اعتماد السائق</button><button className="secondary-btn" disabled={busy} onClick={() => reviewDriver(driver.driver_id, 'rejected')}>رفض السائق</button></>}</div></div>)}
+            {drivers.map(driver => <div className="admin-row driver-review" key={driver.driver_id}><div><b>{driver.display_name || 'بدون اسم'} · {driver.onboarding_status}</b><small>{driver.vehicle_make ?? 'لا توجد مركبة'} {driver.vehicle_model ?? ''} · {driver.seat_capacity ?? '—'} مقاعد · المركبة: {driver.vehicle_status ?? 'غير مسجلة'}</small></div><div className="admin-review-actions">{driver.vehicle_id && driver.vehicle_status === 'pending' && <><button className="secondary-btn" disabled={busy} onClick={() => reviewVehicle(driver.vehicle_id!, 'approved')}>اعتماد المركبة</button><button className="secondary-btn" disabled={busy} onClick={() => reviewVehicle(driver.vehicle_id!, 'rejected')}>رفض المركبة</button></>}{driver.onboarding_status !== 'approved' && <><button className="primary-btn" disabled={busy || driver.vehicle_status !== 'approved' || driver.account_status !== 'active' || !requiredDocumentTypes.every(type => driverDocuments.some(doc => doc.driver_id === driver.driver_id && doc.document_type === type && doc.status === 'approved' && (!doc.expires_on || doc.expires_on >= new Date().toISOString().slice(0,10))))} onClick={() => reviewDriver(driver.driver_id, 'approved')}>اعتماد السائق</button><button className="secondary-btn" disabled={busy} onClick={() => reviewDriver(driver.driver_id, 'rejected')}>رفض السائق</button></>}</div></div>)}
           </section>
         </div>}
 
