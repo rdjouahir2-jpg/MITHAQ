@@ -223,7 +223,7 @@ returns trigger
 language plpgsql
 security definer
 set search_path = ''
-as $
+as $$
 begin
   if new.status is not distinct from old.status then return new; end if;
   insert into public.user_notifications(user_id, notification_type, title, body)
