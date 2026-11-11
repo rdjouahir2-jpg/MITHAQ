@@ -178,7 +178,7 @@ as $1begin
   end if;
   return new;
 end;
-$;
+$$;
 create trigger ride_financials_snapshot_no_mutation
 before update on public.ride_financials
 for each row execute function public.prevent_ride_financial_snapshot_mutation();
@@ -334,7 +334,7 @@ begin
   values(v_actor,'driver_commission_settled','ride_financial',p_ride_id::text,trim(p_reference),
     jsonb_build_object('commission_minor',v_commission));
 end;
-$;
+$$;
 
 drop function if exists public.get_my_driver_earnings(integer);
 create function public.get_my_driver_earnings(p_limit integer default 20)
@@ -372,7 +372,7 @@ as $1begin
   order by r.completed_at desc nulls last, r.requested_at desc
   limit p_limit;
 end;
-$;
+$$;
 
 create or replace function public.request_driver_payout(p_amount_minor bigint)
 returns uuid
@@ -538,7 +538,7 @@ as $1begin
   order by case p.status when 'pending' then 1 when 'approved' then 2 else 3 end,
     p.requested_at desc limit 200;
 end;
-$;
+$$;
 
 create or replace function public.admin_get_commission_policy()
 returns table (commission_bps integer, is_provisional boolean, version integer)
@@ -553,7 +553,7 @@ as $1begin
   return query select p.commission_bps, p.is_provisional, p.version
     from public.platform_commission_policies p where p.is_active limit 1;
 end;
-$;
+$$;
 
 revoke all on function public.admin_set_platform_commission(integer) from public, anon;
 revoke all on function public.admin_record_ride_payment(uuid,text,text) from public, anon;
