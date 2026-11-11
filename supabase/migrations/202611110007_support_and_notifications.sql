@@ -240,7 +240,7 @@ begin
   );
   return new;
 end;
-$;
+$$;
 drop trigger if exists safety_reports_notify_status_change on public.safety_reports;
 create trigger safety_reports_notify_status_change
 after update of status on public.safety_reports
