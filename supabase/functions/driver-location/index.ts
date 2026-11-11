@@ -19,10 +19,6 @@ function json(status: number, body: Record<string, unknown>, origin: string) {
   });
 }
 
-function validNumber(value: unknown, min: number, max: number): value is number {
-  return typeof value === "number" && Number.isFinite(value) && value >= min && value <= max;
-}
-
 Deno.serve(async (req: Request) => {
   const configuredOrigin = Deno.env.get("ALLOWED_ORIGIN");
   const requestOrigin = req.headers.get("origin");
