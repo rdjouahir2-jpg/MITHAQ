@@ -480,14 +480,14 @@ begin
   if v_driver_id is null then raise exception 'driver_profile_required' using errcode = '42501'; end if;
   return query
   select
-    coalesce((select sum(f.gross_fare_minor) from public.ride_financials f where f.driver_id=v_driver_id),0),
-    greatest(0, -coalesce((select sum(e.amount_minor) from public.driver_ledger_entries e
-      where e.driver_id=v_driver_id and e.entry_type in ('cash_commission_due','commission_remittance')),0)),
-    greatest(0, coalesce((select sum(e.amount_minor) from public.driver_ledger_entries e where e.driver_id=v_driver_id),0)
-      - coalesce((select sum(p.amount_minor) from public.driver_payout_requests p
-        where p.driver_id=v_driver_id and p.status in ('pending','approved')),0)),
-    coalesce((select sum(p.amount_minor) from public.driver_payout_requests p
-      where p.driver_id=v_driver_id and p.status in ('pending','approved')),0),
+    coalesce((select sum(f.gross_fare_minor)::bigint from public.ride_financials f where f.driver_id=v_driver_id),0::bigint),
+    greatest(0::bigint, -coalesce((select sum(e.amount_minor)::bigint from public.driver_ledger_entries e
+      where e.driver_id=v_driver_id and e.entry_type in ('cash_commission_due','commission_remittance')),0::bigint)),
+    greatest(0::bigint, coalesce((select sum(e.amount_minor)::bigint from public.driver_ledger_entries e where e.driver_id=v_driver_id),0::bigint)
+      - coalesce((select sum(p.amount_minor)::bigint from public.driver_payout_requests p
+        where p.driver_id=v_driver_id and p.status in ('pending','approved')),0::bigint)),
+    coalesce((select sum(p.amount_minor)::bigint from public.driver_payout_requests p
+      where p.driver_id=v_driver_id and p.status in ('pending','approved')),0::bigint),
     'DZD'::char(3);
 end;
 $$;
