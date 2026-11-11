@@ -65,7 +65,7 @@ begin
     set status = 'rejected', updated_at = now()
   where ride_id = p_ride_id and status = 'open';
 
-  if v_actor = 'driver' then
+  if v_driver_id is not null then
     update public.driver_profiles
       set availability_status = 'offline', updated_at = now()
     where id = v_driver_id;
