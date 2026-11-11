@@ -39,7 +39,10 @@ create index if not exists user_notifications_user_created_idx
 alter table public.support_ticket_messages enable row level security;
 alter table public.user_notifications enable row level security;
 
+drop policy if exists support_ticket_insert_self on public.support_tickets;
 drop policy if exists support_ticket_select_self on public.support_tickets;
+revoke all on public.support_tickets from public, anon, authenticated;
+grant select on public.support_tickets to authenticated;
 create policy support_ticket_select_self on public.support_tickets
   for select to authenticated using (user_id = (select auth.uid()));
 create policy support_messages_participant_read on public.support_ticket_messages
@@ -220,6 +223,7 @@ grant execute on function public.create_support_ticket(text,text,uuid) to authen
 grant execute on function public.admin_list_support_tickets() to authenticated;
 grant execute on function public.admin_reply_support_ticket(uuid,text,text) to authenticated;
 
+revoke all on public.support_ticket_messages, public.user_notifications from public, anon, authenticated;
 grant select on public.support_ticket_messages, public.user_notifications to authenticated;
 grant update (read_at) on public.user_notifications to authenticated;
 
