@@ -96,8 +96,9 @@ select extensions.is((select amount_minor from public.driver_ledger_entries wher
 select public.admin_record_driver_commission_payment('53000000-0000-4000-8000-000000000002','COMMISSION-REMIT-02');
 select extensions.is((select commission_status from public.ride_financials where ride_id='53000000-0000-4000-8000-000000000002'),'settled','commission remittance closes the outstanding commission');
 select extensions.is((select amount_minor from public.driver_ledger_entries where ride_id='53000000-0000-4000-8000-000000000002' and entry_type='commission_remittance'),2000::bigint,'commission remittance balances the driver ledger');
+select set_config('request.jwt.claim.sub','51000000-0000-4000-8000-000000000002',true);
 select extensions.throws_ok(
- $$select public.admin_set_platform_commission(1200)$$,
+ $select public.admin_set_platform_commission(1200)$,
  '42501','admin_required','drivers cannot change platform commission'
 );
 select set_config('request.jwt.claim.sub','51000000-0000-4000-8000-000000000003',true);
