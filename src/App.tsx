@@ -99,6 +99,7 @@ export default function App() {
   const [adminFinancials, setAdminFinancials] = useState<AdminFinancial[]>([])
   const [adminPayouts, setAdminPayouts] = useState<AdminPayout[]>([])
   const [commissionBps, setCommissionBps] = useState<number | null>(null)
+  const [commissionProvisional, setCommissionProvisional] = useState(true)
   const [commissionDraft, setCommissionDraft] = useState('10')
   const [paymentReferences, setPaymentReferences] = useState<Record<string, string>>({})
   const [payoutReferences, setPayoutReferences] = useState<Record<string, string>>({})
@@ -243,6 +244,7 @@ export default function App() {
       if (commissionResult.error) throw commissionResult.error
       const policyRow = Array.isArray(commissionResult.data) ? commissionResult.data[0] : commissionResult.data
       setCommissionBps(policyRow?.commission_bps ?? null)
+      setCommissionProvisional(Boolean(policyRow?.is_provisional))
       if (policyRow?.commission_bps !== undefined) setCommissionDraft(String(Number(policyRow.commission_bps) / 100))
       setAdminFinancials((financeResult.data ?? []) as AdminFinancial[])
       setAdminPayouts((payoutResult.data ?? []) as AdminPayout[])
@@ -262,6 +264,7 @@ export default function App() {
       setAdminFinancials([])
       setAdminPayouts([])
       setCommissionBps(null)
+      setCommissionProvisional(true)
     }
   }, [])
 
@@ -730,6 +733,19 @@ export default function App() {
     setNotice('تم تسجيل التحصيل وإنشاء القيد المالي.')
   })
 
+
+  const recordCommissionPayment = (rideId: string) => run(async () => {
+    const reference = (paymentReferences[rideId] ?? '').trim()
+    if (reference.length < 3) throw new Error('أدخل مرجع تسديد العمولة.')
+    const { error: commissionError } = await supabase!.rpc('admin_record_driver_commission_payment', {
+      p_ride_id: rideId, p_reference: reference,
+    })
+    if (commissionError) throw commissionError
+    setPaymentReferences(items => ({ ...items, [rideId]: '' }))
+    await refreshData(user!.id)
+    setNotice('تم تسجيل تسديد عمولة المنصة.')
+  })
+
   const processDriverPayout = (payoutId: string, decision: 'approve' | 'pay' | 'reject') => run(async () => {
     const reference = (payoutReferences[payoutId] ?? '').trim()
     if (decision === 'pay' && reference.length < 3) throw new Error('أدخل مرجع التحويل قبل تأكيد الدفع.')
@@ -961,7 +977,7 @@ export default function App() {
 
           <section className="panel admin-note">
             <span className="section-kicker">المالية والعمولات</span><h2>سياسة العمولة</h2>
-            <p className="muted">النسبة الحالية: {commissionBps === null ? 'غير مهيأة' : (commissionBps / 100).toFixed(2) + '%'} · لا تُطبق التغييرات إلا على الرحلات الجديدة المكتملة.</p>
+            <p className="muted">النسبة الحالية: {commissionBps === null ? 'غير مهيأة' : (commissionBps / 100).toFixed(2) + '%'}{commissionProvisional ? ' · نسبة تجريبية مؤقتة' : ' · سياسة معتمدة إدارياً'} · لا تُطبق التغييرات إلا على الرحلات الجديدة المكتملة.</p>
             <label className="field-label">العمولة الجديدة (%)<input className="wide-input" type="number" min="0" max="30" step="0.1" value={commissionDraft} onChange={e => setCommissionDraft(e.target.value)} /></label>
             <button className="primary-btn" disabled={busy} onClick={updatePlatformCommission}>حفظ نسبة العمولة</button>
             <h3>سجل أجور الرحلات ({adminFinancials.length})</h3>
@@ -969,6 +985,7 @@ export default function App() {
             {adminFinancials.map(finance => <div className="admin-row" key={finance.ride_id}>
               <div><b>{finance.driver_name} · {money(finance.gross_fare_minor, finance.currency_code)}</b><small>عمولة {money(finance.commission_minor, finance.currency_code)} · صافي السائق {money(finance.driver_net_minor, finance.currency_code)} · {finance.payment_status}</small>
                 {finance.payment_status === 'pending' && <><input className="wide-input" value={paymentReferences[finance.ride_id] ?? ''} onChange={e => setPaymentReferences(items => ({...items,[finance.ride_id]:e.target.value}))} placeholder="مرجع الإيصال أو التحصيل"/><div className="admin-review-actions"><button className="secondary-btn" disabled={busy} onClick={() => recordRidePayment(finance.ride_id,'cash_to_driver')}>نقداً للسائق</button><button className="primary-btn" disabled={busy} onClick={() => recordRidePayment(finance.ride_id,'manual_transfer_to_platform')}>تحصيل للمنصة</button></div></>}
+                {finance.commission_status === 'due' && <><input className="wide-input" value={paymentReferences[finance.ride_id] ?? ''} onChange={e => setPaymentReferences(items => ({...items,[finance.ride_id]:e.target.value}))} placeholder="مرجع تسديد العمولة"/><button className="secondary-btn" disabled={busy} onClick={() => recordCommissionPayment(finance.ride_id)}>تأكيد تسديد العمولة</button></>}
               </div>
             </div>)}
             <h3>طلبات تسوية السائقين ({adminPayouts.length})</h3>
