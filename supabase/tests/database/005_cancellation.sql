@@ -4,18 +4,20 @@ select extensions.plan(5);
 insert into auth.users (id,aud,role,email,created_at,updated_at) values
  ('11000000-0000-4000-8000-000000000001','authenticated','authenticated','cancel-passenger@example.invalid',now(),now()),
  ('11000000-0000-4000-8000-000000000002','authenticated','authenticated','cancel-driver@example.invalid',now(),now()),
- ('11000000-0000-4000-8000-000000000003','authenticated','authenticated','cancel-outsider@example.invalid',now(),now())
+ ('11000000-0000-4000-8000-000000000003','authenticated','authenticated','cancel-outsider@example.invalid',now(),now()),
+ ('11000000-0000-4000-8000-000000000004','authenticated','authenticated','cancel-passenger-2@example.invalid',now(),now()),
+ ('11000000-0000-4000-8000-000000000005','authenticated','authenticated','cancel-passenger-3@example.invalid',now(),now())
 on conflict(id) do nothing;
 update public.profiles set account_status='active'
-where id in ('11000000-0000-4000-8000-000000000001','11000000-0000-4000-8000-000000000002','11000000-0000-4000-8000-000000000003');
+where id in ('11000000-0000-4000-8000-000000000001','11000000-0000-4000-8000-000000000002','11000000-0000-4000-8000-000000000003','11000000-0000-4000-8000-000000000004','11000000-0000-4000-8000-000000000005');
 insert into public.driver_profiles(id,user_id,onboarding_status,availability_status)
 values ('21000000-0000-4000-8000-000000000001','11000000-0000-4000-8000-000000000002','approved','busy')
 on conflict(id) do nothing;
 insert into public.rides(id,passenger_id,driver_id,pickup_label,destination_label,status,quoted_amount_minor)
 values
  ('31000000-0000-4000-8000-000000000001','11000000-0000-4000-8000-000000000001',null,'A','B','offered',10000),
- ('31000000-0000-4000-8000-000000000002','11000000-0000-4000-8000-000000000001','21000000-0000-4000-8000-000000000001','C','D','accepted',12000),
- ('31000000-0000-4000-8000-000000000003','11000000-0000-4000-8000-000000000001','21000000-0000-4000-8000-000000000001','E','F','in_progress',13000)
+ ('31000000-0000-4000-8000-000000000002','11000000-0000-4000-8000-000000000004','21000000-0000-4000-8000-000000000001','C','D','accepted',12000),
+ ('31000000-0000-4000-8000-000000000003','11000000-0000-4000-8000-000000000005','21000000-0000-4000-8000-000000000001','E','F','in_progress',13000)
 on conflict(id) do nothing;
 
 select set_config('request.jwt.claim.sub','11000000-0000-4000-8000-000000000003',true);
