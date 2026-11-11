@@ -1,104 +1,61 @@
 # MITHAQ Android background driver location
 
-## Architecture
+## Current status
 
-The current hosted experience is a Vite/PWA. Browser geolocation is foreground-only for this use case; a service worker cannot keep GPS active after the page is suspended. Background driver tracking therefore runs in the Android native runtime, not in the service worker.
+MITHAQ is currently a Vite/React web application. Browser geolocation is foreground-only for this use case; a service worker cannot keep GPS active after the page is suspended. The `driver-location` Supabase Edge Function is a protected ingestion endpoint, **not** an Android background GPS client. No native Android application or background tracker is integrated yet.
 
-Use Capacitor 8 with `@capgo/background-geolocation` 8.4.0. The plugin runs a location foreground service and displays a persistent notification. MITHAQ deliberately does **not** request Android's broad `ACCESS_BACKGROUND_LOCATION` permission for ordinary driver-online tracking: the driver explicitly starts tracking while the app is visible, and Android's location foreground-service permission is the narrower fit. Revisit the permission only if a separate background-geofencing feature is introduced and approved.
+## Preferred SDK candidate: Traccar Client SDK
 
-## Native package versions
+Repository: https://github.com/traccar/traccar-client-sdk  
+Reviewed upstream commit: `e56ca0840656e785629d7d3d2b0b275a6c110489`  
+Licence: Apache-2.0
 
-Pin the following versions together when generating the Android project:
+The SDK is a Kotlin Multiplatform library with native Android/iOS APIs and Flutter/React Native wrappers. It provides:
+- Android location foreground service and persistent notification.
+- Local SQLite-backed position queue that survives app/process restarts.
+- Retry with exponential backoff and wait-for-connectivity behavior.
+- Battery-aware stationary detection and configurable location filtering.
+- Custom HTTP headers, allowing authenticated delivery to a MITHAQ adapter.
 
-- `@capacitor/core@8.6.0`
-- `@capacitor/android@8.6.0`
-- `@capacitor/cli@8.6.0` (development dependency)
-- `@capgo/background-geolocation@8.4.0`
+Official documentation: https://www.traccar.org/traccar-client-sdk/
 
-Then generate and sync the native project with Capacitor CLI. Do not hand-edit generated Gradle files before the first `cap sync`.
+### Important permission and protocol findings
 
-## Capacitor configuration
+The current upstream Android manifest declares `ACCESS_BACKGROUND_LOCATION`, activity recognition, foreground-service location, notifications, boot receiver and wake lock. The SDK's permission flow checks for background location on Android 10+. This is broader than the previous Capgo proposal. Before integration, MITHAQ must implement a clear driver-facing explanation, request permissions only in the driver-online flow, document purpose/retention, and complete a Google Play policy review. Do not quietly merge or request broad location permission.
 
-Use this configuration (merge it with any future platform settings):
+The SDK posts form-encoded OsmAnd-style fields:
+- `id`: SDK device identifier
+- `lat`, `lon`: coordinates
+- `timestamp`: Unix seconds
+- Optional `accuracy`, `altitude`, `speed`, `bearing`, `batt`, `charge`
 
-```json
-{
-  "appId": "dz.mithaq.app",
-  "appName": "MITHAQ",
-  "webDir": "dist",
-  "android": {
-    "useLegacyBridge": true
-  }
-}
-```
+Its `Config` supports custom HTTP headers. The current MITHAQ Edge Function expects a bearer-authenticated JSON body, so the SDK cannot call it directly. A dedicated adapter endpoint must validate a short-lived, revocable device credential bound to one approved driver/device, validate coordinate/time/accuracy bounds, enforce driver online/busy status, and call the existing protected database RPC. A device identifier alone is not authentication. Never embed a Supabase service-role key in the app.
 
-The legacy bridge option is required by the selected plugin to avoid its Android location watcher stopping after several minutes in the background.
+## Integration architecture
 
-## Android manifest requirements
+1. Generate the Capacitor Android project for the existing Vite app and pin compatible Capacitor versions.
+2. Implement a small native Kotlin Capacitor plugin that wraps Traccar SDK start/stop/state/log APIs.
+3. On explicit driver Online action, verify driver approval and foreground session, present the disclosure, request required permissions, mint/refresh a revocable device credential, then start tracking.
+4. Send SDK reports to a dedicated adapter endpoint. The adapter authenticates the device credential and forwards validated coordinates to the existing `record_driver_location` RPC; never write directly to the private location table from a client.
+5. On Offline, logout, driver suspension, credential revocation or account deactivation, stop the SDK and revoke the device credential. The server must expire stale presence independently of the client.
+6. Show tracking state, last successful upload time and errors in the driver UI. Never display Online as healthy when location reports are stale.
 
-The Android app manifest must include:
+## Alternative
 
-```xml
-<uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
-<uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-<uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
-<uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-<uses-feature android:name="android.hardware.location.gps" android:required="true" />
-```
-
-Do not add `ACCESS_BACKGROUND_LOCATION` for this flow. Android 14+ requires the location foreground-service type and its specific permission. Start the service only from the driver's visible, explicit Online action, after foreground location permission is granted. Android 13+ notification permission must also be requested so the persistent tracking notice is visible.
-
-## Native start/stop flow
-
-After the driver presses Online and the app has verified the driver is approved, fetch the current Supabase session and request only foreground location plus notification permissions. Start the native watcher with:
-
-```ts
-await BackgroundGeolocation.start({
-  requestPermissions: false,
-  backgroundTitle: "MITHAQ — موقع السائق",
-  backgroundMessage: "موقعك يُرسل أثناء اتصالك لاستقبال الرحلات. اضغط لإيقاف الاتصال.",
-  stale: false,
-  distanceFilter: 20,
-  minIntervalMs: 15000,
-  url: `${SUPABASE_URL}/functions/v1/driver-location`,
-  headers: {
-    apikey: SUPABASE_PUBLISHABLE_KEY,
-    Authorization: `Bearer ${session.access_token}`,
-  },
-}, (location, error) => {
-  if (error) {
-    // Show a visible tracking warning; never silently claim the driver is online.
-    reportLocationError(error);
-  }
-});
-```
-
-The native endpoint validates the user JWT, rejects stale/low-accuracy/mock points, and calls the existing authenticated `record_driver_location` RPC. The RPC still enforces active account, approved driver, online/busy state, approved vehicle, coordinate bounds and timestamp freshness. It does not expose the private location table.
-
-On Supabase auth token refresh, call `BackgroundGeolocation.updateHeaders({ headers: { apikey: SUPABASE_PUBLISHABLE_KEY, Authorization: `Bearer ${newAccessToken}` } })`. On Offline, logout, driver suspension, or trip termination when the driver has no further active work, call `BackgroundGeolocation.stop()` and set the driver offline through the existing RPC. A native service must never continue tracking a driver who has opted Offline.
-
-## Reliability and limits
-
-- Android can restart the foreground service after the app process is reclaimed, but a user force-stop, revoked permission, disabled location service, OEM battery policy, or expired JWT can stop delivery.
-- The plugin's native HTTP delivery is best-effort and has no durable offline queue or automatic retry. The server's latest location is intentionally a single current fix, not a route history.
-- Refresh the native Authorization header whenever Supabase refreshes the session. If the process is killed long enough for the JWT to expire, the endpoint rejects updates until the user reopens the app and refreshes the session. The UI must surface stale location and automatically mark the driver unavailable after the server-side freshness window.
-- Never describe PWA-only geolocation as background tracking.
-- Google Play review may require a location foreground-service declaration and a clear in-app disclosure because location is used for a core driver feature. The service must stop when that user-initiated work ends.
+A custom native foreground service using Android Location APIs could avoid adopting the SDK's broad background permission flow, but would require MITHAQ to implement durable offline storage, retry, boot behavior, diagnostics and battery handling itself. Compare both options in a small Android proof of concept before committing.
 
 ## Two-device release test
 
 Use two independent Android devices (or one physical device and one Android emulator) with separate accounts:
 
-1. Device A signs in as passenger; Device B signs in as approved driver.
-2. Driver presses Online while the app is visible and grants location + notification permission.
-3. Verify the persistent MITHAQ tracking notification appears on Device B.
-4. Minimize the driver app, lock its screen for at least 10 minutes, and move the device a known distance. Verify the passenger map receives fresh timestamps and the driver's location changes.
-5. Accept the passenger request on Device B, confirm pickup with the PIN, start and complete the ride.
-6. Verify both devices receive ride status changes and the server creates exactly one financial snapshot.
-7. Disable mobile data briefly, restore it, and verify recovery; record any missed interval because the native plugin does not queue offline points.
-8. Press Offline and verify the persistent notification disappears and the private driver location row is deleted.
-9. Repeat with denied location permission, denied notification permission, poor GPS accuracy, expired session, and Android battery optimization enabled.
-10. Confirm a passenger account cannot call the driver location RPC or read another driver's private location.
+1. Device A signs in as passenger; Device B signs in as an approved driver.
+2. Driver explicitly presses Online and sees the location disclosure and permission rationale.
+3. Verify the persistent tracking notification appears.
+4. Minimize the driver app, lock its screen for at least 10 minutes, and move the device a known distance. Verify fresh passenger-map positions and timestamps.
+5. Accept the passenger request, confirm pickup with the PIN, start and complete the ride.
+6. Disconnect mobile data briefly, restore it, and verify queued positions are retried without corrupting latest location.
+7. Press Offline and verify tracking stops, the notification disappears, and server presence/location freshness is handled correctly.
+8. Test denied/revoked permissions, expired/revoked device credentials, poor GPS accuracy, force-stop, reboot, Android battery restrictions, and network loss.
+9. Confirm a passenger cannot submit driver location or read another driver's private location.
 
-A web CI run cannot replace this physical-device test. Do not release background tracking as production-ready until this checklist passes on the target Android versions and at least one OEM device with aggressive battery management.
+A web CI run cannot replace this physical-device test. Do not release background tracking until the Android build and this checklist pass on target Android versions and an OEM device with aggressive battery management.
