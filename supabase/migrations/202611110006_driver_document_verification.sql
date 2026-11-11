@@ -342,7 +342,7 @@ returns trigger
 language plpgsql
 security definer
 set search_path = ''
-as $
+as $mithaq$
 declare
   v_driver_id uuid;
 begin
@@ -366,7 +366,7 @@ begin
   end if;
   return new;
 end;
-$;
+$mithaq$;
 revoke all on function public.enforce_current_driver_documents() from public, anon, authenticated;
 
 drop trigger if exists driver_profile_documents_before_online on public.driver_profiles;
