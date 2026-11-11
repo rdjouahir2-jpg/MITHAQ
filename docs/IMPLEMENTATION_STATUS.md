@@ -78,3 +78,12 @@ Keep testing restricted to consenting invited users, with no payment and no publ
 - A completion trigger snapshots the agreed amount into `rides.final_amount_minor`; an integration test covers both protections.
 - These checks run against an ephemeral local Supabase stack in CI. The hosted project still has only the original 23 migrations; the new fare-negotiation migrations have not been applied there.
 - No merge to `main`, hosted database migration, or deployment is implied by these source and CI checks.
+
+
+## Database hardening follow-up (2026-11-11)
+
+- Revoked direct client table privileges on server-managed fare policies and service-area configuration.
+- Revoked client EXECUTE on the RLS DDL event-trigger function when present; the event trigger itself remains installed.
+- Rewrote participant RLS predicates to evaluate `auth.uid()` as an init-plan rather than per row.
+- Added covering indexes for 11 foreign keys identified by Supabase performance advisors.
+- Added pgTAP checks for these privilege and index guarantees. The migration remains branch-only until hosted rollout is explicitly approved.
