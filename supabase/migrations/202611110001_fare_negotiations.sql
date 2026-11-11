@@ -365,3 +365,19 @@ grant execute on function public.get_my_fare_negotiations() to authenticated;
 
 comment on table public.fare_negotiations is
 'Participant-visible negotiation records. All mutations must use authenticated transactional RPCs.';
+
+
+-- Publish only negotiation row changes; RLS remains the participant visibility boundary.
+do $$
+begin
+  if exists (select 1 from pg_publication where pubname = 'supabase_realtime')
+     and not exists (
+       select 1 from pg_publication_tables
+       where pubname = 'supabase_realtime'
+         and schemaname = 'public'
+         and tablename = 'fare_negotiations'
+     ) then
+    alter publication supabase_realtime add table public.fare_negotiations;
+  end if;
+end;
+$$;
