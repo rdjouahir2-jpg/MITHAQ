@@ -609,8 +609,9 @@ export default function App() {
 
   const createSupportTicket = () => run(async () => {
     if (supportMessage.trim().length < 5) throw new Error('اكتب تفاصيل طلب الدعم (5 أحرف على الأقل).')
+    const relatedRideId = screen === 'driver' ? driverRide?.id ?? null : passengerRide?.id ?? null
     const { data, error: ticketError } = await supabase!.rpc('create_support_ticket', {
-      p_category: supportCategory, p_message: supportMessage.trim(), p_ride_id: passengerRide?.id ?? null,
+      p_category: supportCategory, p_message: supportMessage.trim(), p_ride_id: relatedRideId,
     })
     if (ticketError) throw ticketError
     setSupportMessage('')
@@ -717,6 +718,15 @@ export default function App() {
           {notifications.slice(0, 8).map(item => <div className="admin-row" key={item.id}><div><b>{item.title}</b><small>{item.body} · {time(item.created_at)}</small></div>{!item.read_at && <button className="text-button" disabled={busy} onClick={() => markNotificationRead(item.id)}>تمت القراءة</button>}</div>)}
         </section>
 
+        <section className="panel support-center">
+          <span className="section-kicker">الدعم والشكاوى</span><h2>كيف يمكننا مساعدتك؟</h2>
+          <label className="field-label">نوع الطلب<select className="wide-input" value={supportCategory} onChange={e => setSupportCategory(e.target.value)}><option>استفسار عام</option><option>مشكلة في الرحلة</option><option>مشكلة في السائق أو الراكب</option><option>الدفع أو الأجرة</option><option>السلامة</option><option>اقتراح أو شكوى</option></select></label>
+          <textarea value={supportMessage} onChange={e => setSupportMessage(e.target.value)} placeholder="اشرح طلبك أو شكواك بالتفصيل…" rows={3} maxLength={4000}/>
+          <button className="secondary-btn" disabled={busy || supportMessage.trim().length < 5} onClick={createSupportTicket}>إرسال إلى الدعم</button>
+          <small>تُحفظ التذكرة ويمكنك متابعة ردود الفريق من سجلّك. إذا كان البلاغ متعلقاً برحلة نشطة فسيُربط بها تلقائياً.</small>
+          {supportTickets.length > 0 && <><h3>تذاكرك ({supportTickets.length})</h3>{supportTickets.map(ticket => <div className="admin-row" key={ticket.id}><div><b>{ticket.category} · {ticket.status === 'open' ? 'مفتوحة' : ticket.status === 'assigned' ? 'قيد المعالجة' : ticket.status === 'resolved' ? 'تم الحل' : 'مغلقة'}</b><small>{ticket.message} · آخر تحديث {time(ticket.updated_at)}</small>{supportMessages.filter(message => message.ticket_id === ticket.id).slice(-5).map(message => <small key={message.id}>{message.is_staff ? 'الدعم: ' : 'أنت: '}{message.body}</small>)}</div></div>)}</>}
+        </section>
+
         {screen === 'passenger' && <div className="content-grid">
           <section className="panel booking-panel">
             <div className="panel-heading"><div><span className="section-kicker">طلب رحلة</span><h2>أين تريد الذهاب؟</h2></div><span className="heading-icon"><Navigation size={20}/></span></div>
@@ -733,14 +743,6 @@ export default function App() {
             <button className="primary-btn" disabled={busy || profile?.account_status !== 'active' || !pickup || !destination} onClick={getQuote}>حساب السعر من الطريق</button>
             {quote && <button className="primary-btn confirm-btn" disabled={busy} onClick={bookRide}>تأكيد طلب الرحلة</button>}
             <p className="microcopy"><ShieldCheck size={14}/> لا توجد مدفوعات إلكترونية في هذه المرحلة.</p>
-            <section className="safety-report-form">
-              <b>الدعم والشكاوى</b>
-              <label className="field-label">نوع الطلب<select className="wide-input" value={supportCategory} onChange={e => setSupportCategory(e.target.value)}><option>استفسار عام</option><option>مشكلة في الرحلة</option><option>مشكلة في السائق أو الراكب</option><option>الدفع أو الأجرة</option><option>السلامة</option><option>اقتراح أو شكوى</option></select></label>
-              <textarea value={supportMessage} onChange={e => setSupportMessage(e.target.value)} placeholder="اشرح طلبك أو شكواك بالتفصيل…" rows={3} maxLength={4000}/>
-              <button className="secondary-btn" disabled={busy || supportMessage.trim().length < 5} onClick={createSupportTicket}>إرسال إلى الدعم</button>
-              <small>تُحفظ التذكرة ويمكنك متابعة رد فريق الدعم من سجلّك.</small>
-            </section>
-            {supportTickets.length > 0 && <section className="panel"><span className="section-kicker">سجل الدعم</span><h3>تذاكرك ({supportTickets.length})</h3>{supportTickets.map(ticket => <div className="admin-row" key={ticket.id}><div><b>{ticket.category} · {ticket.status === 'open' ? 'مفتوحة' : ticket.status === 'assigned' ? 'قيد المعالجة' : ticket.status === 'resolved' ? 'تم الحل' : 'مغلقة'}</b><small>{ticket.message} · آخر تحديث {time(ticket.updated_at)}</small>{supportMessages.filter(message => message.ticket_id === ticket.id).slice(-5).map(message => <small key={message.id}>{message.is_staff ? 'الدعم: ' : 'أنت: '}{message.body}</small>)}</div></div>)}</section>}
             {passengerRide && !['completed','cancelled','expired'].includes(passengerRide.status) && <div className="safety-report-form">
               <b>الإبلاغ عن مشكلة في الرحلة</b>
               <textarea value={reportDescription} onChange={e => setReportDescription(e.target.value)} placeholder="اكتب ما حدث باختصار…" rows={2}/>
