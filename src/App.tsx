@@ -43,6 +43,10 @@ type Offer = {
 type AdminAccount = { user_id: string; display_name: string; created_at: string }
 type AdminRide = { ride_id: string; passenger_name: string; driver_name: string | null; pickup_label: string; destination_label: string; ride_status: string; quoted_amount_minor: number; currency_code: string; requested_at: string; completed_at: string | null }
 type SafetyReport = { report_id: string; ride_id: string | null; reporter_name: string; category: string; severity: string; description: string; report_status: string; created_at: string }
+type SupportTicket = { id: string; category: string; message: string; status: string; created_at: string; updated_at: string }
+type SupportMessage = { id: string; ticket_id: string; body: string; is_staff: boolean; created_at: string }
+type UserNotification = { id: string; notification_type: string; title: string; body: string; created_at: string; read_at: string | null }
+type AdminSupportTicket = { ticket_id: string; user_id: string; requester_name: string; ride_id: string | null; category: string; initial_message: string; ticket_status: string; assigned_to: string | null; created_at: string; updated_at: string }
 type RatingStatus = { has_rated: boolean; score: number | null; comment: string | null }
 type DriverEarning = { ride_id: string; pickup_label: string; destination_label: string; completed_at: string; gross_fare_minor: number; currency_code: string }
 type AdminDriver = {
@@ -100,6 +104,13 @@ export default function App() {
   const [documentPreviewUrl, setDocumentPreviewUrl] = useState('')
   const [adminRides, setAdminRides] = useState<AdminRide[]>([])
   const [safetyReports, setSafetyReports] = useState<SafetyReport[]>([])
+  const [supportTickets, setSupportTickets] = useState<SupportTicket[]>([])
+  const [supportMessages, setSupportMessages] = useState<SupportMessage[]>([])
+  const [notifications, setNotifications] = useState<UserNotification[]>([])
+  const [adminSupportTickets, setAdminSupportTickets] = useState<AdminSupportTicket[]>([])
+  const [supportCategory, setSupportCategory] = useState('استفسار عام')
+  const [supportMessage, setSupportMessage] = useState('')
+  const [adminReplies, setAdminReplies] = useState<Record<string, string>>({})
   const [reportDescription, setReportDescription] = useState('')
   const [ratingScore, setRatingScore] = useState(5)
   const [ratingComment, setRatingComment] = useState('')
@@ -144,15 +155,24 @@ export default function App() {
 
   const refreshData = useCallback(async (userId: string) => {
     if (!supabase) return
-    const [profileResult, roleResult, ridesResult, driverResult] = await Promise.all([
+    const [profileResult, roleResult, ridesResult, driverResult, ticketsResult, messagesResult, notificationsResult] = await Promise.all([
       supabase.from('profiles').select('id,display_name,account_status').eq('id', userId).maybeSingle(),
       supabase.from('user_roles').select('role').eq('user_id', userId),
       supabase.rpc('get_my_passenger_ride_details', { p_limit: 20 }),
       supabase.from('driver_profiles').select('id,onboarding_status,availability_status').eq('user_id', userId).maybeSingle(),
+      supabase.from('support_tickets').select('id,category,message,status,created_at,updated_at').eq('user_id', userId).order('updated_at', { ascending: false }).limit(30),
+      supabase.from('support_ticket_messages').select('id,ticket_id,body,is_staff,created_at').order('created_at', { ascending: true }).limit(300),
+      supabase.from('user_notifications').select('id,notification_type,title,body,created_at,read_at').order('created_at', { ascending: false }).limit(30),
     ])
     if (profileResult.error) throw profileResult.error
     if (roleResult.error) throw roleResult.error
     if (ridesResult.error) throw ridesResult.error
+    if (ticketsResult.error) throw ticketsResult.error
+    if (messagesResult.error) throw messagesResult.error
+    if (notificationsResult.error) throw notificationsResult.error
+    setSupportTickets((ticketsResult.data ?? []) as SupportTicket[])
+    setSupportMessages((messagesResult.data ?? []) as SupportMessage[])
+    setNotifications((notificationsResult.data ?? []) as UserNotification[])
     setProfile(profileResult.data as Profile | null)
     const nextRoles = (roleResult.data ?? []).map(row => row.role as string)
     setRoles(nextRoles)
@@ -185,18 +205,21 @@ export default function App() {
     }
 
     if (nextRoles.includes('admin')) {
-      const [accountResult, driverQueueResult, rideResult, safetyResult, documentsResult] = await Promise.all([
+      const [accountResult, driverQueueResult, rideResult, safetyResult, documentsResult, supportResult] = await Promise.all([
         supabase.rpc('admin_list_pending_accounts'),
         supabase.rpc('admin_list_driver_applications'),
         supabase.rpc('admin_list_recent_rides'),
         supabase.rpc('admin_list_safety_reports'),
         supabase.rpc('admin_list_driver_documents'),
+        supabase.rpc('admin_list_support_tickets'),
       ])
       if (accountResult.error) throw accountResult.error
       if (driverQueueResult.error) throw driverQueueResult.error
       if (rideResult.error) throw rideResult.error
       if (safetyResult.error) throw safetyResult.error
       if (documentsResult.error) throw documentsResult.error
+      if (supportResult.error) throw supportResult.error
+      setAdminSupportTickets((supportResult.data ?? []) as AdminSupportTicket[])
       setDriverDocuments((documentsResult.data ?? []) as DriverDocument[])
       setAdminRides((rideResult.data ?? []) as AdminRide[])
       setSafetyReports((safetyResult.data ?? []) as SafetyReport[])
@@ -208,6 +231,7 @@ export default function App() {
       setDriverDocuments([])
       setAdminRides([])
       setSafetyReports([])
+      setAdminSupportTickets([])
     }
   }, [])
 
@@ -226,7 +250,7 @@ export default function App() {
         setProfile(null); setRoles([]); setDriverProfile(null)
         setPassengerRides([]); setDriverRides([]); setOffers([]); setNegotiations([])
         setDriverEarnings([]); setDriverDocuments([]); setMyDriverDocuments([]); setAccounts([])
-        setAdminRides([]); setSafetyReports([]); setDocumentFile(null); setDocumentPreviewUrl('')
+        setAdminRides([]); setSafetyReports([]); setSupportTickets([]); setSupportMessages([]); setNotifications([]); setAdminSupportTickets([]); setDocumentFile(null); setDocumentPreviewUrl('')
       }
     })
     return () => { alive = false; authListener.subscription.unsubscribe() }
@@ -249,6 +273,12 @@ export default function App() {
         refreshData(user.id).catch(err => setError(err.message))
       })
     channel.on('postgres_changes', { event: '*', schema: 'public', table: 'fare_negotiations', filter: `passenger_id=eq.${user.id}` }, () => {
+      refreshData(user.id).catch(err => setError(err.message))
+    })
+    channel.on('postgres_changes', { event: '*', schema: 'public', table: 'user_notifications', filter: `user_id=eq.${user.id}` }, () => {
+      refreshData(user.id).catch(err => setError(err.message))
+    })
+    channel.on('postgres_changes', { event: '*', schema: 'public', table: 'support_tickets', filter: `user_id=eq.${user.id}` }, () => {
       refreshData(user.id).catch(err => setError(err.message))
     })
     if (driverProfile?.id) {
@@ -577,6 +607,33 @@ export default function App() {
     setNotice('تم إرسال البلاغ إلى سجل المراجعة في بيئة الاختبار.')
   })
 
+  const createSupportTicket = () => run(async () => {
+    if (supportMessage.trim().length < 5) throw new Error('اكتب تفاصيل طلب الدعم (5 أحرف على الأقل).')
+    const { data, error: ticketError } = await supabase!.rpc('create_support_ticket', {
+      p_category: supportCategory, p_message: supportMessage.trim(), p_ride_id: passengerRide?.id ?? null,
+    })
+    if (ticketError) throw ticketError
+    setSupportMessage('')
+    await refreshData(user!.id)
+    setNotice('تم فتح تذكرة دعم رقم ' + String(data).slice(0, 8) + '، ويمكنك متابعة الردود من سجل التذاكر.')
+  })
+
+  const markNotificationRead = (notificationId: string) => run(async () => {
+    const { error: readError } = await supabase!.from('user_notifications').update({ read_at: new Date().toISOString() }).eq('id', notificationId)
+    if (readError) throw readError
+    setNotifications(items => items.map(item => item.id === notificationId ? { ...item, read_at: new Date().toISOString() } : item))
+  })
+
+  const replySupportTicket = (ticketId: string, status: 'assigned' | 'resolved' | 'closed') => run(async () => {
+    const body = (adminReplies[ticketId] ?? '').trim()
+    if (body.length < 2) throw new Error('اكتب رد الإدارة قبل إرسال التحديث.')
+    const { error: replyError } = await supabase!.rpc('admin_reply_support_ticket', { p_ticket_id: ticketId, p_body: body, p_status: status })
+    if (replyError) throw replyError
+    setAdminReplies(items => ({ ...items, [ticketId]: '' }))
+    await refreshData(user!.id)
+    setNotice('تم إرسال رد الإدارة وتحديث حالة التذكرة.')
+  })
+
   const updateSafetyReport = (reportId: string, status: 'investigating' | 'resolved' | 'closed') => run(async () => {
     const { error: reportError } = await supabase!.rpc('admin_update_safety_report', {
       p_report_id: reportId, p_status: status,
@@ -654,6 +711,12 @@ export default function App() {
         {error && <div className="alert error">{error}<button onClick={() => setError('')}>إغلاق</button></div>}
         {notice && <div className="alert success">{notice}<button onClick={() => setNotice('')}>إغلاق</button></div>}
 
+        <section className="panel notification-panel">
+          <div className="panel-heading"><div><span className="section-kicker">مركز التنبيهات</span><h2>إشعاراتك ({notifications.filter(item => !item.read_at).length} غير مقروءة)</h2></div></div>
+          {!notifications.length && <p className="muted">ستظهر هنا تحديثات الرحلات وعروض السائق وردود الدعم.</p>}
+          {notifications.slice(0, 8).map(item => <div className="admin-row" key={item.id}><div><b>{item.title}</b><small>{item.body} · {time(item.created_at)}</small></div>{!item.read_at && <button className="text-button" disabled={busy} onClick={() => markNotificationRead(item.id)}>تمت القراءة</button>}</div>)}
+        </section>
+
         {screen === 'passenger' && <div className="content-grid">
           <section className="panel booking-panel">
             <div className="panel-heading"><div><span className="section-kicker">طلب رحلة</span><h2>أين تريد الذهاب؟</h2></div><span className="heading-icon"><Navigation size={20}/></span></div>
@@ -670,6 +733,14 @@ export default function App() {
             <button className="primary-btn" disabled={busy || profile?.account_status !== 'active' || !pickup || !destination} onClick={getQuote}>حساب السعر من الطريق</button>
             {quote && <button className="primary-btn confirm-btn" disabled={busy} onClick={bookRide}>تأكيد طلب الرحلة</button>}
             <p className="microcopy"><ShieldCheck size={14}/> لا توجد مدفوعات إلكترونية في هذه المرحلة.</p>
+            <section className="safety-report-form">
+              <b>الدعم والشكاوى</b>
+              <label className="field-label">نوع الطلب<select className="wide-input" value={supportCategory} onChange={e => setSupportCategory(e.target.value)}><option>استفسار عام</option><option>مشكلة في الرحلة</option><option>مشكلة في السائق أو الراكب</option><option>الدفع أو الأجرة</option><option>السلامة</option><option>اقتراح أو شكوى</option></select></label>
+              <textarea value={supportMessage} onChange={e => setSupportMessage(e.target.value)} placeholder="اشرح طلبك أو شكواك بالتفصيل…" rows={3} maxLength={4000}/>
+              <button className="secondary-btn" disabled={busy || supportMessage.trim().length < 5} onClick={createSupportTicket}>إرسال إلى الدعم</button>
+              <small>تُحفظ التذكرة ويمكنك متابعة رد فريق الدعم من سجلّك.</small>
+            </section>
+            {supportTickets.length > 0 && <section className="panel"><span className="section-kicker">سجل الدعم</span><h3>تذاكرك ({supportTickets.length})</h3>{supportTickets.map(ticket => <div className="admin-row" key={ticket.id}><div><b>{ticket.category} · {ticket.status === 'open' ? 'مفتوحة' : ticket.status === 'assigned' ? 'قيد المعالجة' : ticket.status === 'resolved' ? 'تم الحل' : 'مغلقة'}</b><small>{ticket.message} · آخر تحديث {time(ticket.updated_at)}</small>{supportMessages.filter(message => message.ticket_id === ticket.id).slice(-5).map(message => <small key={message.id}>{message.is_staff ? 'الدعم: ' : 'أنت: '}{message.body}</small>)}</div></div>)}</section>}
             {passengerRide && !['completed','cancelled','expired'].includes(passengerRide.status) && <div className="safety-report-form">
               <b>الإبلاغ عن مشكلة في الرحلة</b>
               <textarea value={reportDescription} onChange={e => setReportDescription(e.target.value)} placeholder="اكتب ما حدث باختصار…" rows={2}/>
@@ -765,6 +836,10 @@ export default function App() {
           </section>
           <section className="panel admin-note"><span className="section-kicker">مراقبة الرحلات</span><h2>آخر الرحلات ({adminRides.length})</h2>
             {adminRides.slice(0,12).map(ride => <div className="admin-row" key={ride.ride_id}><div><b>{ride.passenger_name} · {statusNames[ride.ride_status] ?? ride.ride_status}</b><small>{ride.pickup_label} ← {ride.destination_label} · السائق: {ride.driver_name ?? 'لم يُعيّن'} · {money(ride.quoted_amount_minor, ride.currency_code)}</small></div><small>{time(ride.requested_at)}</small></div>)}
+          </section>
+          <section className="panel admin-note"><span className="section-kicker">خدمة العملاء</span><h2>تذاكر الدعم ({adminSupportTickets.length})</h2>
+            {!adminSupportTickets.length && <p className="muted">لا توجد تذاكر دعم حالياً.</p>}
+            {adminSupportTickets.map(ticket => <div className="admin-row" key={ticket.ticket_id}><div><b>{ticket.requester_name} · {ticket.category} · {ticket.ticket_status}</b><small>{ticket.initial_message} · {time(ticket.created_at)}</small><textarea rows={2} maxLength={4000} value={adminReplies[ticket.ticket_id] ?? ''} onChange={e => setAdminReplies(items => ({ ...items, [ticket.ticket_id]: e.target.value }))} placeholder="اكتب رد فريق الدعم…"/><div className="admin-review-actions"><button className="secondary-btn" disabled={busy || (adminReplies[ticket.ticket_id] ?? '').trim().length < 2} onClick={() => replySupportTicket(ticket.ticket_id, 'assigned')}>رد · قيد المعالجة</button><button className="primary-btn" disabled={busy || (adminReplies[ticket.ticket_id] ?? '').trim().length < 2} onClick={() => replySupportTicket(ticket.ticket_id, 'resolved')}>رد وحلّ التذكرة</button><button className="secondary-btn" disabled={busy || (adminReplies[ticket.ticket_id] ?? '').trim().length < 2} onClick={() => replySupportTicket(ticket.ticket_id, 'closed')}>رد وإغلاق</button></div></div></div>)}
           </section>
           <section className="panel admin-note"><span className="section-kicker">السلامة والدعم</span><h2>بلاغات السلامة ({safetyReports.length})</h2>
             {!safetyReports.length && <p className="muted">لا توجد بلاغات.</p>}
