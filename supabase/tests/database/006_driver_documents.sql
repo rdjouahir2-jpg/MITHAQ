@@ -63,7 +63,7 @@ select extensions.is(
 
 select set_config('request.jwt.claim.sub','61000000-0000-4000-8000-000000000001',true);
 select extensions.throws_ok(
- $select * from public.admin_list_driver_documents()$,
+ $$select * from public.admin_list_driver_documents()$$,
  '42501','admin_required','drivers cannot list the administrative document queue'
 );
 select set_config('request.jwt.claim.sub','61000000-0000-4000-8000-000000000002',true);
