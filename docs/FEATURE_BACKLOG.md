@@ -21,6 +21,7 @@ Source implementation is not proof of a hosted deployment. See `docs/IMPLEMENTAT
 ## Implemented in the current feature branch
 
 - Driver-only completed-trip earnings history with finalized gross fare and completion time; explicitly not represented as net pay or settlement.
+- Participant-authorized pre-boarding cancellation with reason audit, offer withdrawal, negotiation closure, and driver offline handling. No cancellation fee is charged.
 
 ## P1 — required before an invited field pilot
 

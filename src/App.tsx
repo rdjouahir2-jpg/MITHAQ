@@ -371,13 +371,11 @@ export default function App() {
     await refreshData(user!.id)
   })
 
-  const cancelRide = (rideId: string) => run(async () => {
-    const { error: rpcError } = await supabase!.rpc('advance_ride', {
-      p_ride_id: rideId, p_next_status: 'cancelled', p_boarding_pin: null,
-    })
+  const cancelRide = (rideId: string, reason: 'passenger_changed_plans' | 'driver_unavailable') => run(async () => {
+    const { error: rpcError } = await supabase!.rpc('cancel_ride', { p_ride_id: rideId, p_reason: reason })
     if (rpcError) throw rpcError
     await refreshData(user!.id)
-    setNotice('تم إلغاء الرحلة.')
+    setNotice('تم إلغاء الرحلة وتسجيل سبب الإلغاء.')
   })
 
   const updateDriverRide = (ride: Ride) => run(async () => {
@@ -612,7 +610,7 @@ export default function App() {
             </div>}
             {ratingRide && screen === 'passenger' && <RatingPanel ratingStatus={ratingStatus} ratingScore={ratingScore} setRatingScore={setRatingScore} ratingComment={ratingComment} setRatingComment={setRatingComment} busy={busy} submit={submitRating}/>}
             {negotiations.filter(item => item.passenger_id === user?.id && item.status === 'open').map(item => <section className="panel" key={item.negotiation_id}><span className="section-kicker">تفاوض على السعر</span><h3>{item.pickup_label} ← {item.destination_label}</h3><p>عرض السائق: <b>{money(item.current_amount_minor, item.currency_code)}</b></p><small>النطاق المسموح: {money(item.minimum_amount_minor, item.currency_code)} – {money(item.maximum_amount_minor, item.currency_code)} · الجولة {item.round_number}/{item.max_rounds}</small><small>ينتهي {time(item.expires_at)}</small>{item.last_actor === 'driver' ? <><label className="field-label">عرضك المضاد بالدينار<input className="wide-input" type="number" min="1" value={counterAmounts[item.negotiation_id] ?? ''} onChange={e => setCounterAmounts(v => ({...v,[item.negotiation_id]:e.target.value}))}/></label><div className="offer-buttons"><button className="primary-btn" disabled={busy} onClick={() => answerFareNegotiation(item,'accept')}>قبول السعر</button><button className="secondary-btn" disabled={busy || item.round_number >= item.max_rounds} onClick={() => answerFareNegotiation(item,'counter')}>اقتراح سعر</button><button className="secondary-btn" disabled={busy} onClick={() => answerFareNegotiation(item,'reject')}>رفض</button></div></> : <p className="muted">أرسلت آخر عرض؛ ننتظر رد السائق.</p>}</section>)}
-           {passengerRide && <div className="ride-summary"><span className="section-kicker">آخر رحلة</span><h3>{statusNames[passengerRide.status] ?? passengerRide.status}</h3><p>{passengerRide.pickup_label} ← {passengerRide.destination_label}</p>{passengerRide.driver_name && <p>السائق: {passengerRide.driver_name} · المركبة: {passengerRide.vehicle_make ?? ''} {passengerRide.vehicle_model ?? ''} {passengerRide.vehicle_color ?? ''}</p>}<b>{money(passengerRide.quoted_amount_minor, passengerRide.currency_code)}</b>{!['completed','cancelled','expired','boarded','in_progress'].includes(passengerRide.status) && <button className="text-button" onClick={() => cancelRide(passengerRide.id)}>إلغاء الرحلة</button>}</div>}
+           {passengerRide && <div className="ride-summary"><span className="section-kicker">آخر رحلة</span><h3>{statusNames[passengerRide.status] ?? passengerRide.status}</h3><p>{passengerRide.pickup_label} ← {passengerRide.destination_label}</p>{passengerRide.driver_name && <p>السائق: {passengerRide.driver_name} · المركبة: {passengerRide.vehicle_make ?? ''} {passengerRide.vehicle_model ?? ''} {passengerRide.vehicle_color ?? ''}</p>}<b>{money(passengerRide.quoted_amount_minor, passengerRide.currency_code)}</b>{!['completed','cancelled','expired','boarded','in_progress'].includes(passengerRide.status) && <button className="text-button" onClick={() => cancelRide(passengerRide.id, 'passenger_changed_plans')}>إلغاء الرحلة</button>}</div>}
           </section>
           <section className="panel map-panel">
             <div className="map-top"><span className="map-tag"><MapPin size={14}/> خريطة فعلية</span><span className="map-muted">اختر النقاط مباشرة</span></div>
@@ -650,6 +648,7 @@ export default function App() {
           {driverRide && <section className="panel active-driver-ride"><span className="section-kicker">الرحلة النشطة</span><h2>{statusNames[driverRide.status]}</h2><p>{driverRide.pickup_label} ← {driverRide.destination_label}</p><p>الراكب: {driverRide.passenger_name || 'الراكب'}</p><p>الفئة: {categoryNames[driverRide.category] ?? driverRide.category}</p>
             {driverRide.status === 'arrived' && <label className="auth-field">رمز الصعود من الراكب<input inputMode="numeric" maxLength={6} value={boardingPin} onChange={e => setBoardingPin(e.target.value.replace(/\D/g, '').slice(0,6))}/></label>}
             <button className="primary-btn" disabled={busy || (driverRide.status === 'arrived' && boardingPin.length !== 6)} onClick={() => updateDriverRide(driverRide)}>{driverRide.status === 'accepted' ? 'بدء التوجه للراكب' : driverRide.status === 'driver_arriving' ? 'تأكيد الوصول' : driverRide.status === 'arrived' ? 'تأكيد رمز الصعود' : driverRide.status === 'boarded' ? 'بدء الرحلة' : 'إنهاء الرحلة'}</button>
+            {['accepted','driver_arriving','arrived'].includes(driverRide.status) && <button className="text-button" disabled={busy} onClick={() => cancelRide(driverRide.id, 'driver_unavailable')}>تعذر إكمال الرحلة · إلغاء</button>}
           </section>}
           <section className="panel">
             <span className="section-kicker">سجل الأرباح</span><h2>الرحلات المكتملة ({driverEarnings.length})</h2>

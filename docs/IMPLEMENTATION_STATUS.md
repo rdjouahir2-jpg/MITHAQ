@@ -95,3 +95,13 @@ Keep testing restricted to consenting invited users, with no payment and no publ
 - Added driver UI history for the latest 20 completed rides and their gross fare.
 - The UI explicitly distinguishes gross trip fare from net driver earnings; commission, adjustments, cash reconciliation, and settlement remain unimplemented.
 - Added pgTAP coverage for own-trip visibility, finalized fare integrity, cross-account isolation, and invalid limits. CI must pass before this is treated as verified.
+
+
+## Pre-boarding cancellation (2026-11-11)
+
+- Added a participant-only `cancel_ride` RPC for passengers and assigned drivers before boarding.
+- Cancellation records actor and reason, withdraws outstanding offers, closes open fare negotiations, and takes a cancelling driver offline.
+- The client exposes cancellation to passengers and assigned drivers before boarding.
+- No cancellation fee or penalty is applied; fee policy is deferred pending legal and product review.
+- pgTAP covers unauthorized cancellation, passenger cancellation, driver offline handling, and denial after trip start.
+- Migration is branch-only until CI passes and a test rollout is explicitly approved.
