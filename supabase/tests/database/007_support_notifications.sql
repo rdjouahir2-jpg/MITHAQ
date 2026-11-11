@@ -1,0 +1,17 @@
+begin;
+create extension if not exists pgtap with schema extensions;
+select extensions.plan(12);
+select extensions.has_table('public','support_ticket_messages','support ticket conversation table exists');
+select extensions.has_table('public','user_notifications','durable notification inbox exists');
+select extensions.ok((select relrowsecurity from pg_class where oid='public.support_tickets'::regclass),'support tickets use RLS');
+select extensions.ok((select relrowsecurity from pg_class where oid='public.support_ticket_messages'::regclass),'support messages use RLS');
+select extensions.ok((select relrowsecurity from pg_class where oid='public.user_notifications'::regclass),'notifications use RLS');
+select extensions.ok(has_function_privilege('authenticated','public.create_support_ticket(text,text,uuid)','EXECUTE'),'authenticated users can create scoped support tickets');
+select extensions.ok(has_function_privilege('authenticated','public.admin_list_support_tickets()','EXECUTE'),'admin queue RPC is callable with internal role check');
+select extensions.ok(has_function_privilege('authenticated','public.admin_reply_support_ticket(uuid,text,text)','EXECUTE'),'admin reply RPC is callable with internal role check');
+select extensions.ok(not has_function_privilege('anon','public.create_support_ticket(text,text,uuid)','EXECUTE'),'anonymous users cannot create support tickets');
+select extensions.ok(not has_function_privilege('anon','public.admin_reply_support_ticket(uuid,text,text)','EXECUTE'),'anonymous users cannot reply to tickets');
+select extensions.ok(not has_table_privilege('authenticated','public.user_notifications','INSERT'),'clients cannot forge notifications');
+select extensions.ok(exists(select 1 from pg_trigger where tgname='rides_notify_status_change' and not tgisinternal),'ride status changes create durable notification events');
+select * from extensions.finish();
+rollback;
