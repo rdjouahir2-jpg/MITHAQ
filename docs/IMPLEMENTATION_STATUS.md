@@ -58,7 +58,7 @@ The domain rules, transactional database migration/RPCs, participant read policy
 ## Not yet implemented or independently verified for production
 
 - [ ] Connect fare negotiation to secure transactional database functions and both user interfaces.
-- [ ] Secure driver document upload and review for identity, driving licence, vehicle registration, and insurance.
+- [x] Private driver document upload and admin review for identity, driving licence, vehicle registration, and insurance (new branch migration; awaiting CI verification).
 - [ ] Phone verification and abuse controls.
 - [ ] Native Android driver app, background GPS, push notifications, and battery/permission handling.
 - [ ] Payment and driver settlement after legal and financial validation.
@@ -105,3 +105,17 @@ Keep testing restricted to consenting invited users, with no payment and no publ
 - No cancellation fee or penalty is applied; fee policy is deferred pending legal and product review.
 - pgTAP covers unauthorized cancellation, passenger cancellation, driver offline handling, and denial after trip start.
 - Migration is branch-only until CI passes and a test rollout is explicitly approved.
+
+
+## Driver document verification (2026-11-11)
+
+- Added a private Storage bucket restricted to PDF/JPEG/PNG files up to 10 MiB.
+- Added owner-scoped upload/read policies and administrator-only read access for manual review; no public document URLs or client delete permissions.
+- Added document metadata, submission, owner status, admin review, and short-lived signed preview workflows.
+- Required current approved identity, driving licence, vehicle registration, and insurance documents before driver approval.
+- Added a database trigger so the driver approval state cannot be changed to approved without all four latest documents being approved and current.
+- Existing approved drivers without the required documents are moved offline and back to review when this migration is applied.
+- Replacing a document takes the driver offline and returns the profile to review; a busy driver cannot replace documents mid-trip.
+- Online activation and fresh GPS writes are blocked when required documents are incomplete or expired; accepting an existing offer is also guarded.
+- Added pgTAP coverage for missing documents, approval denial, latest-upload supersession, admin queue authorization, and successful approval after review.
+- The new migration is branch-only. It has not been applied to the hosted Supabase project. CI must pass before this is treated as verified.
