@@ -15,9 +15,22 @@ where id in ('11000000-0000-4000-8000-000000000001','11000000-0000-4000-8000-000
 insert into public.driver_profiles (id,user_id,onboarding_status,availability_status)
 values ('21000000-0000-4000-8000-000000000001','11000000-0000-4000-8000-000000000001','approved','offline')
 on conflict (id) do nothing;
+insert into public.platform_commission_policies(version, commission_bps, is_active, is_provisional)
+values (1, 1000, true, true);
+
 insert into public.rides (id,passenger_id,driver_id,pickup_label,destination_label,status,quoted_amount_minor,final_amount_minor,currency_code,completed_at)
 values ('31000000-0000-4000-8000-000000000001','11000000-0000-4000-8000-000000000002','21000000-0000-4000-8000-000000000001','A','B','completed',18750,18750,'DZD',now())
 on conflict (id) do nothing;
+
+insert into public.ride_financials(
+ ride_id, passenger_id, driver_id, currency_code, gross_fare_minor,
+ commission_policy_version, commission_bps, commission_minor, driver_net_minor
+) values (
+ '31000000-0000-4000-8000-000000000001',
+ '11000000-0000-4000-8000-000000000002',
+ '21000000-0000-4000-8000-000000000001',
+ 'DZD', 18750, 1, 1000, 1875, 16875
+);
 
 select set_config('request.jwt.claim.sub','11000000-0000-4000-8000-000000000001',true);
 select extensions.is(
