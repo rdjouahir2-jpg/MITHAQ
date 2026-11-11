@@ -89,6 +89,10 @@ select extensions.ok(
   'unauthorized expiry attempt leaves negotiation state unchanged'
 );
 
+-- The financial snapshot trigger requires an explicitly configured test policy.
+insert into public.platform_commission_policies(version, commission_bps, is_active, is_provisional)
+values (1, 1000, true, true);
+
 -- Completing a trip snapshots the agreed amount into the final fare field.
 select set_config('request.jwt.claim.sub','10000000-0000-4000-8000-000000000005',true);
 select public.advance_ride(
