@@ -31,6 +31,8 @@ create table public.ride_financials (
     check (payment_status in ('pending','collected','refunded','disputed')),
   commission_status text not null default 'pending'
     check (commission_status in ('pending','due','settled','waived')),
+  payment_reference text,
+  commission_reference text,
   created_at timestamptz not null default now(),
   collected_at timestamptz,
   check (commission_minor + driver_net_minor = gross_fare_minor)
@@ -74,6 +76,9 @@ create table public.driver_payout_requests (
 );
 create index driver_payout_requests_queue_idx
   on public.driver_payout_requests(status, requested_at);
+alter table public.driver_ledger_entries
+  add constraint driver_ledger_payout_id_fkey foreign key (payout_id)
+  references public.driver_payout_requests(id);
 
 alter table public.platform_commission_policies enable row level security;
 alter table public.ride_financials enable row level security;
@@ -152,6 +157,33 @@ create trigger rides_create_financial_snapshot
 after update of status on public.rides
 for each row execute function public.create_ride_financial_snapshot();
 revoke all on function public.create_ride_financial_snapshot() from public, anon, authenticated;
+
+
+create or replace function public.prevent_ride_financial_snapshot_mutation()
+returns trigger
+language plpgsql
+set search_path = ''
+as $
+begin
+  if new.ride_id is distinct from old.ride_id
+     or new.passenger_id is distinct from old.passenger_id
+     or new.driver_id is distinct from old.driver_id
+     or new.currency_code is distinct from old.currency_code
+     or new.gross_fare_minor is distinct from old.gross_fare_minor
+     or new.commission_policy_version is distinct from old.commission_policy_version
+     or new.commission_bps is distinct from old.commission_bps
+     or new.commission_minor is distinct from old.commission_minor
+     or new.driver_net_minor is distinct from old.driver_net_minor
+     or new.created_at is distinct from old.created_at then
+    raise exception 'financial_snapshot_is_immutable' using errcode = '55000';
+  end if;
+  return new;
+end;
+$;
+create trigger ride_financials_snapshot_no_mutation
+before update on public.ride_financials
+for each row execute function public.prevent_ride_financial_snapshot_mutation();
+revoke all on function public.prevent_ride_financial_snapshot_mutation() from public, anon, authenticated;
 
 create or replace function public.record_driver_ledger_on_payment()
 returns trigger
@@ -254,6 +286,7 @@ begin
   end if;
   update public.ride_financials
     set payment_method = p_payment_method, payment_status = 'collected',
+        payment_reference = trim(p_reference),
         commission_status = case when p_payment_method = 'cash_to_driver' then 'due' else 'pending' end
   where ride_id = p_ride_id and payment_status = 'pending';
   if not found then raise exception 'pending_ride_payment_not_found' using errcode = 'P0002'; end if;
@@ -298,7 +331,7 @@ begin
     values(v_driver,p_ride_id,'commission_remittance',v_commission,v_currency,
       'تسديد عمولة المنصة من السائق');
   end if;
-  update public.ride_financials set commission_status='settled' where ride_id=p_ride_id;
+  update public.ride_financials set commission_status='settled', commission_reference=trim(p_reference) where ride_id=p_ride_id;
   insert into public.audit_logs(actor_user_id,action,target_type,target_id,reason,metadata)
   values(v_actor,'driver_commission_settled','ride_financial',p_ride_id::text,trim(p_reference),
     jsonb_build_object('commission_minor',v_commission));
