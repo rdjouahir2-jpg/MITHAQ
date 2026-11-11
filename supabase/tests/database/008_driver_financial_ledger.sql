@@ -60,7 +60,7 @@ select extensions.is((select payout_available_minor from public.get_my_driver_fi
 select extensions.ok(public.request_driver_payout(16875) is not null,'driver can request a payout within available balance');
 select extensions.is((select status from public.driver_payout_requests limit 1),'pending','new payout requests require administrative review');
 select extensions.throws_ok(
- $select public.admin_process_driver_payout((select id from public.driver_payout_requests limit 1),'approve',null,null)$,
+ $$select public.admin_process_driver_payout((select id from public.driver_payout_requests limit 1),'approve',null,null)$$,
  '42501','admin_required','drivers cannot approve their own payout'
 );
 select set_config('request.jwt.claim.sub','51000000-0000-4000-8000-000000000001',true);
@@ -97,7 +97,7 @@ select public.admin_record_driver_commission_payment('53000000-0000-4000-8000-00
 select extensions.is((select commission_status from public.ride_financials where ride_id='53000000-0000-4000-8000-000000000002'),'settled','commission remittance closes the outstanding commission');
 select extensions.is((select amount_minor from public.driver_ledger_entries where ride_id='53000000-0000-4000-8000-000000000002' and entry_type='commission_remittance'),2000::bigint,'commission remittance balances the driver ledger');
 select extensions.throws_ok(
- $select public.admin_set_platform_commission(1200)$,
+ $$select public.admin_set_platform_commission(1200)$$,
  '42501','admin_required','drivers cannot change platform commission'
 );
 select set_config('request.jwt.claim.sub','51000000-0000-4000-8000-000000000003',true);
