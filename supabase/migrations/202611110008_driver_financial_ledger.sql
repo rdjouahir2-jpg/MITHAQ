@@ -485,6 +485,48 @@ begin
 end;
 $$;
 
+
+create or replace function public.admin_list_payout_requests()
+returns table (
+  payout_id uuid, driver_id uuid, driver_name text, amount_minor bigint,
+  currency_code char(3), payout_status text, payout_reference text, requested_at timestamptz
+)
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $
+begin
+  if auth.uid() is null or not exists (
+    select 1 from public.user_roles where user_id=auth.uid() and role='admin'
+  ) then raise exception 'admin_required' using errcode = '42501'; end if;
+  return query
+  select p.id, p.driver_id, pr.display_name, p.amount_minor, p.currency_code,
+    p.status, p.payout_reference, p.requested_at
+  from public.driver_payout_requests p
+  join public.driver_profiles d on d.id=p.driver_id
+  join public.profiles pr on pr.id=d.user_id
+  order by case p.status when 'pending' then 1 when 'approved' then 2 else 3 end,
+    p.requested_at desc limit 200;
+end;
+$;
+
+create or replace function public.admin_get_commission_policy()
+returns table (commission_bps integer, is_provisional boolean, version integer)
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $
+begin
+  if auth.uid() is null or not exists (
+    select 1 from public.user_roles where user_id=auth.uid() and role='admin'
+  ) then raise exception 'admin_required' using errcode = '42501'; end if;
+  return query select p.commission_bps, p.is_provisional, p.version
+    from public.platform_commission_policies p where p.is_active limit 1;
+end;
+$;
+
 revoke all on function public.admin_set_platform_commission(integer) from public, anon;
 revoke all on function public.admin_record_ride_payment(uuid,text,text) from public, anon;
 revoke all on function public.admin_record_driver_commission_payment(uuid,text) from public, anon;
@@ -493,6 +535,8 @@ revoke all on function public.request_driver_payout(bigint) from public, anon;
 revoke all on function public.admin_process_driver_payout(uuid,text,text,text) from public, anon;
 revoke all on function public.get_my_driver_financial_summary() from public, anon;
 revoke all on function public.admin_list_financials() from public, anon;
+revoke all on function public.admin_list_payout_requests() from public, anon;
+revoke all on function public.admin_get_commission_policy() from public, anon;
 grant execute on function public.admin_set_platform_commission(integer) to authenticated;
 grant execute on function public.admin_record_ride_payment(uuid,text,text) to authenticated;
 grant execute on function public.admin_record_driver_commission_payment(uuid,text) to authenticated;
@@ -501,6 +545,8 @@ grant execute on function public.request_driver_payout(bigint) to authenticated;
 grant execute on function public.admin_process_driver_payout(uuid,text,text,text) to authenticated;
 grant execute on function public.get_my_driver_financial_summary() to authenticated;
 grant execute on function public.admin_list_financials() to authenticated;
+grant execute on function public.admin_list_payout_requests() to authenticated;
+grant execute on function public.admin_get_commission_policy() to authenticated;
 
 comment on table public.ride_financials is
 'Immutable fare and commission snapshot per completed ride; collection and settlement transitions are audited.';
