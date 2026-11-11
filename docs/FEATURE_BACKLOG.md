@@ -31,9 +31,12 @@ Source implementation is not proof of a hosted deployment. See `docs/IMPLEMENTAT
 9. **Driver earnings ledger:** trip gross amount, platform commission, adjustments, cash collection, and transparent statements. Do not label gross fare as driver net earnings.
 10. **Operational resilience:** monitoring, alerting, backups, restore drills, idempotency, rate limits, abuse detection, and load tests.
 
+## Implemented in the current feature branch
+
+- Bounded driver/passenger fare negotiation with alternating turns, expiry, accept/reject, and atomic ride assignment. This is CI-tested locally but not yet applied to the hosted database or validated with two live test accounts.
+
 ## P2 — only after the core service is reliable
 
-- Passenger-proposed fares and bounded counter-offers.
 - Scheduled rides and driver commitment/late-cancellation rules.
 - Intercity service with separate operating boundaries, fares, and driver eligibility.
 - Additional vehicle classes and accessibility preferences.

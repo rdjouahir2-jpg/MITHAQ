@@ -68,3 +68,13 @@ The domain rules, transactional database migration/RPCs, participant read policy
 ## Safety gates
 
 Keep testing restricted to consenting invited users, with no payment and no public passenger service. Do not carry paying passengers or launch publicly until legal, insurance, safety, privacy, operational, security, reliability, and native Android requirements are independently verified.
+
+
+## Latest engineering verification (2026-11-11)
+
+- Fare negotiation is implemented in the feature branch, including participant-scoped reads, transactional RPCs, UI actions, alternating turns, expiry, and bounded amounts.
+- GitHub CI passed the web build, Edge Function type checks, domain tests, local Supabase migration replay, and pgTAP security contract.
+- Follow-up hardening now ensures non-participants are rejected before an expired negotiation can be mutated.
+- A completion trigger snapshots the agreed amount into `rides.final_amount_minor`; an integration test covers both protections.
+- These checks run against an ephemeral local Supabase stack in CI. The hosted project still has only the original 23 migrations; the new fare-negotiation migrations have not been applied there.
+- No merge to `main`, hosted database migration, or deployment is implied by these source and CI checks.

@@ -211,14 +211,8 @@ begin
   if v_status <> 'open' then
     raise exception 'negotiation_not_open' using errcode = 'P0001';
   end if;
-  if v_expiry <= now() then
-    update public.fare_negotiations set status = 'expired', updated_at = now()
-    where id = p_negotiation_id;
-    update public.ride_offers set status = 'expired', responded_at = now()
-    where id = v_offer_id and status = 'sent' and expires_at <= now();
-    return 'expired';
-  end if;
 
+  -- Authorize the caller before any expiry transition mutates shared state.
   if v_user = v_passenger_id then
     if v_last_actor <> 'driver' then
       raise exception 'participants_must_alternate' using errcode = 'P0001';
@@ -229,6 +223,14 @@ begin
     end if;
   else
     raise exception 'negotiation_access_denied' using errcode = '42501';
+  end if;
+
+  if v_expiry <= now() then
+    update public.fare_negotiations set status = 'expired', updated_at = now()
+    where id = p_negotiation_id;
+    update public.ride_offers set status = 'expired', responded_at = now()
+    where id = v_offer_id and status = 'sent' and expires_at <= now();
+    return 'expired';
   end if;
 
   if v_user = v_passenger_id and not exists (
