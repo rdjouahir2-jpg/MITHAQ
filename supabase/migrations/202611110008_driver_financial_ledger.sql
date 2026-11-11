@@ -163,8 +163,7 @@ create or replace function public.prevent_ride_financial_snapshot_mutation()
 returns trigger
 language plpgsql
 set search_path = ''
-as $
-begin
+as $1begin
   if new.ride_id is distinct from old.ride_id
      or new.passenger_id is distinct from old.passenger_id
      or new.driver_id is distinct from old.driver_id
@@ -305,8 +304,7 @@ returns void
 language plpgsql
 security definer
 set search_path = ''
-as $
-declare
+as $1declare
   v_actor uuid := auth.uid();
   v_driver uuid;
   v_commission bigint;
@@ -356,8 +354,7 @@ language plpgsql
 stable
 security definer
 set search_path = ''
-as $
-begin
+as $1begin
   if auth.uid() is null then
     raise exception 'authentication_required' using errcode = '28000';
   end if;
@@ -528,8 +525,7 @@ language plpgsql
 stable
 security definer
 set search_path = ''
-as $
-begin
+as $1begin
   if auth.uid() is null or not exists (
     select 1 from public.user_roles where user_id=auth.uid() and role='admin'
   ) then raise exception 'admin_required' using errcode = '42501'; end if;
@@ -550,8 +546,7 @@ language plpgsql
 stable
 security definer
 set search_path = ''
-as $
-begin
+as $1begin
   if auth.uid() is null or not exists (
     select 1 from public.user_roles where user_id=auth.uid() and role='admin'
   ) then raise exception 'admin_required' using errcode = '42501'; end if;
