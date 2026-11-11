@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { isValidDriverLocationPayload } from "./validation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, apikey, content-type",
@@ -39,6 +40,10 @@ Deno.serve(async (req: Request) => {
   if (req.method !== "POST") return json(405, { error: "method_not_allowed" }, allowedOrigin);
   const contentLength = Number(req.headers.get("content-length") ?? 0);
   if (contentLength > 8_192) return json(413, { error: "request_too_large" }, allowedOrigin);
+  const contentType = req.headers.get("content-type")?.split(";")[0].trim().toLowerCase();
+  if (contentType !== "application/json") {
+    return json(415, { error: "application_json_required" }, allowedOrigin);
+  }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
@@ -49,21 +54,20 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const payload = await req.json();
-    const latitude = payload?.latitude;
-    const longitude = payload?.longitude;
-    const accuracy = payload?.accuracy;
-    const timestamp = payload?.time;
-    if (
-      payload?.source !== "native" ||
-      !validNumber(latitude, -90, 90) ||
-      !validNumber(longitude, -180, 180) ||
-      !validNumber(accuracy, 0, 100) ||
-      !validNumber(timestamp, Date.now() - 120_000, Date.now() + 30_000) ||
-      payload?.simulated === true
-    ) {
+    const rawBody = await req.text();
+    if (new TextEncoder().encode(rawBody).byteLength > 8_192) {
+      return json(413, { error: "request_too_large" }, allowedOrigin);
+    }
+    let payload: unknown;
+    try {
+      payload = JSON.parse(rawBody);
+    } catch {
+      return json(400, { error: "invalid_json" }, allowedOrigin);
+    }
+    if (!isValidDriverLocationPayload(payload)) {
       return json(422, { error: "invalid_or_simulated_location" }, allowedOrigin);
     }
+    const { latitude, longitude, accuracy, time: timestamp } = payload;
 
     const userClient = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authorization } },
