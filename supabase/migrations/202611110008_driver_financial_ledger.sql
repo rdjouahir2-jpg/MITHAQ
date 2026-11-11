@@ -15,9 +15,6 @@ create table public.platform_commission_policies (
 create unique index platform_commission_one_active
   on public.platform_commission_policies(is_active) where is_active;
 
-insert into public.platform_commission_policies(version, commission_bps, is_active, is_provisional)
-values (1, 1000, true, true);
-
 create table public.ride_financials (
   ride_id uuid primary key references public.rides(id),
   passenger_id uuid not null references public.profiles(id),
