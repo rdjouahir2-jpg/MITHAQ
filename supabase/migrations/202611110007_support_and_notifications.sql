@@ -131,6 +131,7 @@ as $$
 declare
   v_actor uuid := auth.uid();
   v_user uuid;
+  v_previous text;
 begin
   if v_actor is null or not exists (
     select 1 from public.user_roles r where r.user_id = v_actor and r.role = 'admin'
@@ -141,7 +142,7 @@ begin
      or p_status not in ('assigned','resolved','closed') then
     raise exception 'invalid_support_reply' using errcode = '22023';
   end if;
-  select user_id into v_user from public.support_tickets where id = p_ticket_id for update;
+  select user_id, status into v_user, v_previous from public.support_tickets where id = p_ticket_id for update;
   if not found then raise exception 'support_ticket_not_found' using errcode = 'P0002'; end if;
   insert into public.support_ticket_messages(ticket_id, author_user_id, body, is_staff)
   values(p_ticket_id, v_actor, trim(p_body), true);
@@ -149,6 +150,9 @@ begin
     set status = p_status, assigned_to = v_actor, updated_at = now(),
         resolution = case when p_status = 'resolved' then trim(p_body) else resolution end
   where id = p_ticket_id;
+  insert into public.audit_logs(actor_user_id, action, target_type, target_id, reason, metadata)
+  values(v_actor, 'support_ticket_updated', 'support_ticket', p_ticket_id::text, trim(p_body),
+    jsonb_build_object('from', v_previous, 'to', p_status));
   insert into public.user_notifications(user_id, notification_type, title, body, related_ticket_id)
   values(v_user, 'support_reply', 'تحديث من فريق دعم ميثاق', trim(p_body), p_ticket_id);
 end;
