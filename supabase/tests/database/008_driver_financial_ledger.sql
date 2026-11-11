@@ -47,7 +47,7 @@ select extensions.is((select gross_fare_minor from public.ride_financials where 
 select extensions.is((select commission_minor from public.ride_financials where ride_id='53000000-0000-4000-8000-000000000001'),1875::bigint,'commission is calculated in integer minor units');
 select extensions.is((select driver_net_minor from public.ride_financials where ride_id='53000000-0000-4000-8000-000000000001'),16875::bigint,'driver net equals gross less commission');
 select extensions.throws_ok(
- $update public.ride_financials set gross_fare_minor=1 where ride_id='53000000-0000-4000-8000-000000000001'$,
+  $$update public.ride_financials set gross_fare_minor=1 where ride_id='53000000-0000-4000-8000-000000000001'$$,
  '55000','financial_snapshot_is_immutable','completed ride fare and commission snapshots cannot be edited'
 );
 select extensions.is((select count(*)::integer from public.driver_ledger_entries),0,'no balance entry is created before collection is confirmed');
