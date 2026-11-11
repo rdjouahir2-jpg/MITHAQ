@@ -100,7 +100,7 @@ export default function App() {
   const [adminPayouts, setAdminPayouts] = useState<AdminPayout[]>([])
   const [commissionBps, setCommissionBps] = useState<number | null>(null)
   const [commissionProvisional, setCommissionProvisional] = useState(true)
-  const [commissionDraft, setCommissionDraft] = useState('10')
+  const [commissionDraft, setCommissionDraft] = useState('')
   const [paymentReferences, setPaymentReferences] = useState<Record<string, string>>({})
   const [payoutReferences, setPayoutReferences] = useState<Record<string, string>>({})
   const [offers, setOffers] = useState<Offer[]>([])
