@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select extensions.plan(30);
+select extensions.plan(32);
 
 select extensions.has_table('public','ride_financials','completed rides have a financial snapshot');
 select extensions.has_table('public','driver_ledger_entries','driver balances use an append-only ledger');
@@ -9,6 +9,8 @@ select extensions.ok((select relrowsecurity from pg_class where oid='public.ride
 select extensions.ok((select relrowsecurity from pg_class where oid='public.driver_ledger_entries'::regclass),'driver ledger uses RLS');
 select extensions.ok((select relrowsecurity from pg_class where oid='public.driver_payout_requests'::regclass),'payout requests use RLS');
 select extensions.ok(not has_function_privilege('anon','public.request_driver_payout(bigint)','EXECUTE'),'anonymous users cannot request payouts');
+select extensions.ok(not has_table_privilege('authenticated','public.driver_ledger_entries','INSERT'),'clients cannot forge driver ledger entries');
+select extensions.ok(not has_table_privilege('authenticated','public.ride_financials','UPDATE'),'clients cannot alter fare or commission snapshots');
 select extensions.is((select count(*)::integer from public.platform_commission_policies where is_active),0,'no commission rate is silently assumed before admin approval');
 
 insert into auth.users (id,aud,role,email,created_at,updated_at)
