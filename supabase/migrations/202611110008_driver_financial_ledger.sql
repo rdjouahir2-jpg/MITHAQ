@@ -252,6 +252,9 @@ begin
   if p_payment_method not in ('cash_to_driver','cash_to_platform','manual_transfer_to_platform') then
     raise exception 'invalid_payment_method' using errcode = '22023';
   end if;
+  if length(trim(coalesce(p_reference,''))) < 3 then
+    raise exception 'payment_reference_required' using errcode = '22023';
+  end if;
   update public.ride_financials
     set payment_method = p_payment_method, payment_status = 'collected',
         commission_status = case when p_payment_method = 'cash_to_driver' then 'due' else 'pending' end
