@@ -36,10 +36,14 @@ These are historical CI/deployment results, not a fresh verification of this com
 - [x] **New:** server validates driver ownership and eligibility, passenger/driver turn alternation, fare bounds (70–130% of original quote), five-round cap, expiry, and atomic ride assignment on acceptance.
 - [x] **New:** pgTAP security-contract assertions for negotiation RLS, blocked direct writes, and RPC grants.
 - [x] **New:** typed frontend API wrapper for the negotiation RPCs.
+- [x] **New:** passenger screen shows driver counter-offers and supports accept, counter, or reject.
+- [x] **New:** driver screen can submit a counter-offer and respond to passenger counters.
+- [x] **New:** negotiation updates are subscribed to through Supabase Realtime when the migration is applied.
+- [x] **New:** competing negotiation threads close when any driver is assigned to the ride.
 
 ## Important limitation on fare negotiation
 
-The domain rules, transactional database migration/RPCs, participant read policy, typed client API, and database security assertions are now present in the feature branch. The passenger/driver screens are not yet connected to these RPCs. The migration has not been applied to the hosted Supabase project, and the new pgTAP suite has not yet passed in CI. Do not offer negotiation to real users until UI integration, successful database migration tests, and two-account integration tests are complete.
+The domain rules, transactional database migration/RPCs, participant read policy, typed client API, and database security assertions are now present in the feature branch. The migration has not been applied to the hosted Supabase project. The database pgTAP workflow has not yet completed successfully for this migration; runs were cancelled while the branch was still receiving commits. The UI and API are committed, but must be exercised with two real test accounts after the migration is applied to a disposable/test database. Do not offer negotiation to real users until database tests and two-account integration tests pass.
 
 ## Remaining before a two-phone closed test
 
