@@ -47,7 +47,7 @@ create table public.driver_ledger_entries (
   ride_id uuid references public.rides(id),
   payout_id uuid,
   entry_type text not null check (entry_type in (
-    'cash_commission_due','platform_fare_credit','payout_debit','refund_reversal','admin_adjustment'
+    'cash_commission_due','commission_remittance','platform_fare_credit','payout_debit','refund_reversal','admin_adjustment'
   )),
   amount_minor bigint not null check (amount_minor <> 0),
   currency_code char(3) not null default 'DZD',
@@ -264,6 +264,86 @@ begin
 end;
 $$;
 
+
+create or replace function public.admin_record_driver_commission_payment(
+  p_ride_id uuid, p_reference text
+)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $
+declare
+  v_actor uuid := auth.uid();
+  v_driver uuid;
+  v_commission bigint;
+  v_currency char(3);
+  v_status text;
+begin
+  if v_actor is null or not exists (
+    select 1 from public.user_roles where user_id=v_actor and role='admin'
+  ) then raise exception 'admin_required' using errcode = '42501'; end if;
+  if length(trim(coalesce(p_reference,''))) < 3 then
+    raise exception 'payment_reference_required' using errcode = '22023';
+  end if;
+  select driver_id, commission_minor, currency_code, commission_status
+    into v_driver, v_commission, v_currency, v_status
+  from public.ride_financials where ride_id=p_ride_id and payment_method='cash_to_driver'
+    and payment_status='collected' for update;
+  if not found or v_status <> 'due' then
+    raise exception 'commission_not_due' using errcode = 'P0002';
+  end if;
+  if v_commission > 0 then
+    insert into public.driver_ledger_entries(driver_id,ride_id,entry_type,amount_minor,currency_code,description)
+    values(v_driver,p_ride_id,'commission_remittance',v_commission,v_currency,
+      'تسديد عمولة المنصة من السائق');
+  end if;
+  update public.ride_financials set commission_status='settled' where ride_id=p_ride_id;
+  insert into public.audit_logs(actor_user_id,action,target_type,target_id,reason,metadata)
+  values(v_actor,'driver_commission_settled','ride_financial',p_ride_id::text,trim(p_reference),
+    jsonb_build_object('commission_minor',v_commission));
+end;
+$;
+
+drop function if exists public.get_my_driver_earnings(integer);
+create function public.get_my_driver_earnings(p_limit integer default 20)
+returns table (
+  ride_id uuid,
+  pickup_label text,
+  destination_label text,
+  completed_at timestamptz,
+  gross_fare_minor bigint,
+  commission_minor bigint,
+  driver_net_minor bigint,
+  payment_status text,
+  commission_status text,
+  currency_code char(3)
+)
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $
+begin
+  if auth.uid() is null then
+    raise exception 'authentication_required' using errcode = '28000';
+  end if;
+  if p_limit is null or p_limit not between 1 and 50 then
+    raise exception 'invalid_limit' using errcode = '22023';
+  end if;
+  return query
+  select r.id, r.pickup_label, r.destination_label, r.completed_at,
+    f.gross_fare_minor, f.commission_minor, f.driver_net_minor,
+    f.payment_status, f.commission_status, f.currency_code
+  from public.ride_financials f
+  join public.rides r on r.id=f.ride_id
+  join public.driver_profiles d on d.id=f.driver_id
+  where d.user_id=auth.uid()
+  order by r.completed_at desc nulls last, r.requested_at desc
+  limit p_limit;
+end;
+$;
+
 create or replace function public.request_driver_payout(p_amount_minor bigint)
 returns uuid
 language plpgsql
@@ -407,12 +487,16 @@ $$;
 
 revoke all on function public.admin_set_platform_commission(integer) from public, anon;
 revoke all on function public.admin_record_ride_payment(uuid,text,text) from public, anon;
+revoke all on function public.admin_record_driver_commission_payment(uuid,text) from public, anon;
+revoke all on function public.get_my_driver_earnings(integer) from public, anon;
 revoke all on function public.request_driver_payout(bigint) from public, anon;
 revoke all on function public.admin_process_driver_payout(uuid,text,text,text) from public, anon;
 revoke all on function public.get_my_driver_financial_summary() from public, anon;
 revoke all on function public.admin_list_financials() from public, anon;
 grant execute on function public.admin_set_platform_commission(integer) to authenticated;
 grant execute on function public.admin_record_ride_payment(uuid,text,text) to authenticated;
+grant execute on function public.admin_record_driver_commission_payment(uuid,text) to authenticated;
+grant execute on function public.get_my_driver_earnings(integer) to authenticated;
 grant execute on function public.request_driver_payout(bigint) to authenticated;
 grant execute on function public.admin_process_driver_payout(uuid,text,text,text) to authenticated;
 grant execute on function public.get_my_driver_financial_summary() to authenticated;
