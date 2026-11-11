@@ -7,6 +7,7 @@ import {
 import MapPicker, { type GeoPoint } from './components/MapPicker'
 import { isSupabaseConfigured, supabase } from './lib/supabase'
 import { createFareQuote, recordDriverLocation, requestRide, setDriverAvailability } from './lib/rideApi'
+import { getMyFareNegotiations, respondFareNegotiation, startFareNegotiation, type FareNegotiation } from './lib/fareNegotiationApi'
 
 type Profile = { id: string; display_name: string; account_status: string }
 type DriverProfile = { id: string; onboarding_status: string; availability_status: string }
@@ -77,6 +78,8 @@ export default function App() {
   const [passengerRides, setPassengerRides] = useState<Ride[]>([])
   const [driverRides, setDriverRides] = useState<Ride[]>([])
   const [offers, setOffers] = useState<Offer[]>([])
+  const [negotiations, setNegotiations] = useState<FareNegotiation[]>([])
+  const [counterAmounts, setCounterAmounts] = useState<Record<string, string>>({})
   const [accounts, setAccounts] = useState<AdminAccount[]>([])
   const [drivers, setDrivers] = useState<AdminDriver[]>([])
   const [adminRides, setAdminRides] = useState<AdminRide[]>([])
@@ -140,6 +143,8 @@ export default function App() {
     setPassengerRides((ridesResult.data ?? []) as Ride[])
     setDriverProfile(driverResult.data as DriverProfile | null)
     setDriverOnline(driverResult.data?.availability_status === 'online')
+    const negotiationRows = await getMyFareNegotiations()
+    setNegotiations(negotiationRows)
 
     if (driverResult.data) {
       const [offersResult, driverRidesResult] = await Promise.all([
@@ -191,7 +196,7 @@ export default function App() {
       setScreen('passenger')
       if (!session) {
         setProfile(null); setRoles([]); setDriverProfile(null)
-        setPassengerRides([]); setDriverRides([]); setOffers([])
+        setPassengerRides([]); setDriverRides([]); setOffers([]); setNegotiations([])
       }
     })
     return () => { alive = false; authListener.subscription.unsubscribe() }
@@ -213,8 +218,14 @@ export default function App() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'driver_profiles', filter: `user_id=eq.${user.id}` }, () => {
         refreshData(user.id).catch(err => setError(err.message))
       })
+    channel.on('postgres_changes', { event: '*', schema: 'public', table: 'fare_negotiations', filter: `passenger_id=eq.${user.id}` }, () => {
+      refreshData(user.id).catch(err => setError(err.message))
+    })
     if (driverProfile?.id) {
       channel.on('postgres_changes', { event: '*', schema: 'public', table: 'ride_offers', filter: `driver_id=eq.${driverProfile.id}` }, () => {
+        refreshData(user.id).catch(err => setError(err.message))
+      })
+      channel.on('postgres_changes', { event: '*', schema: 'public', table: 'fare_negotiations', filter: `driver_id=eq.${driverProfile.id}` }, () => {
         refreshData(user.id).catch(err => setError(err.message))
       })
     }
@@ -446,6 +457,29 @@ export default function App() {
     await refreshData(user!.id)
   })
 
+  const beginFareNegotiation = (offerId: string) => run(async () => {
+    const raw = counterAmounts[offerId] ?? ''
+    const amountDzd = Number(raw)
+    if (!Number.isFinite(amountDzd) || amountDzd <= 0 || !Number.isSafeInteger(amountDzd * 100)) {
+      throw new Error('أدخل عرضاً صحيحاً بالدينار الجزائري.')
+    }
+    await startFareNegotiation(offerId, amountDzd * 100)
+    await refreshData(user!.id)
+    setNotice('أرسلت عرضك المضاد. ينتظر التفاوض رد الراكب.')
+  })
+
+  const answerFareNegotiation = (negotiation: FareNegotiation, action: 'counter' | 'accept' | 'reject') => run(async () => {
+    const raw = counterAmounts[negotiation.negotiation_id] ?? ''
+    const amountDzd = Number(raw)
+    const amountMinor = action === 'counter' ? amountDzd * 100 : undefined
+    if (action === 'counter' && (!Number.isFinite(amountDzd) || amountDzd <= 0 || !Number.isSafeInteger(amountMinor))) {
+      throw new Error('أدخل عرضاً صحيحاً بالدينار الجزائري.')
+    }
+    const result = await respondFareNegotiation(negotiation.negotiation_id, action, amountMinor)
+    await refreshData(user!.id)
+    setNotice(result === 'accepted' ? 'تم الاتفاق على السعر وتأكيد إسناد الرحلة.' : result === 'rejected' ? 'تم رفض التفاوض.' : result === 'expired' ? 'انتهت صلاحية التفاوض.' : 'تم إرسال ردك على السعر.')
+  })
+
   const submitRating = () => run(async () => {
     if (!ratingRide) throw new Error('لا توجد رحلة مكتملة لتقييمها.')
     const { error: ratingError } = await supabase!.rpc('submit_ride_rating', {
@@ -571,7 +605,8 @@ export default function App() {
               <small>هذه قناة بلاغات داخلية للاختبار وليست خدمة طوارئ.</small>
             </div>}
             {ratingRide && screen === 'passenger' && <RatingPanel ratingStatus={ratingStatus} ratingScore={ratingScore} setRatingScore={setRatingScore} ratingComment={ratingComment} setRatingComment={setRatingComment} busy={busy} submit={submitRating}/>}
-            {passengerRide && <div className="ride-summary"><span className="section-kicker">آخر رحلة</span><h3>{statusNames[passengerRide.status] ?? passengerRide.status}</h3><p>{passengerRide.pickup_label} ← {passengerRide.destination_label}</p>{passengerRide.driver_name && <p>السائق: {passengerRide.driver_name} · المركبة: {passengerRide.vehicle_make ?? ''} {passengerRide.vehicle_model ?? ''} {passengerRide.vehicle_color ?? ''}</p>}<b>{money(passengerRide.quoted_amount_minor, passengerRide.currency_code)}</b>{!['completed','cancelled','expired','boarded','in_progress'].includes(passengerRide.status) && <button className="text-button" onClick={() => cancelRide(passengerRide.id)}>إلغاء الرحلة</button>}</div>}
+            {negotiations.filter(item => item.passenger_id === user?.id && item.status === 'open').map(item => <section className="panel" key={item.negotiation_id}><span className="section-kicker">تفاوض على السعر</span><h3>{item.pickup_label} ← {item.destination_label}</h3><p>عرض السائق: <b>{money(item.current_amount_minor, item.currency_code)}</b></p><small>النطاق المسموح: {money(item.minimum_amount_minor, item.currency_code)} – {money(item.maximum_amount_minor, item.currency_code)} · الجولة {item.round_number}/{item.max_rounds}</small><small>ينتهي {time(item.expires_at)}</small>{item.last_actor === 'driver' ? <><label className="field-label">عرضك المضاد بالدينار<input className="wide-input" type="number" min="1" value={counterAmounts[item.negotiation_id] ?? ''} onChange={e => setCounterAmounts(v => ({...v,[item.negotiation_id]:e.target.value}))}/></label><div className="offer-buttons"><button className="primary-btn" disabled={busy} onClick={() => answerFareNegotiation(item,'accept')}>قبول السعر</button><button className="secondary-btn" disabled={busy || item.round_number >= item.max_rounds} onClick={() => answerFareNegotiation(item,'counter')}>اقتراح سعر</button><button className="secondary-btn" disabled={busy} onClick={() => answerFareNegotiation(item,'reject')}>رفض</button></div></> : <p className="muted">أرسلت آخر عرض؛ ننتظر رد السائق.</p>}</section>)}
+           {passengerRide && <div className="ride-summary"><span className="section-kicker">آخر رحلة</span><h3>{statusNames[passengerRide.status] ?? passengerRide.status}</h3><p>{passengerRide.pickup_label} ← {passengerRide.destination_label}</p>{passengerRide.driver_name && <p>السائق: {passengerRide.driver_name} · المركبة: {passengerRide.vehicle_make ?? ''} {passengerRide.vehicle_model ?? ''} {passengerRide.vehicle_color ?? ''}</p>}<b>{money(passengerRide.quoted_amount_minor, passengerRide.currency_code)}</b>{!['completed','cancelled','expired','boarded','in_progress'].includes(passengerRide.status) && <button className="text-button" onClick={() => cancelRide(passengerRide.id)}>إلغاء الرحلة</button>}</div>}
           </section>
           <section className="panel map-panel">
             <div className="map-top"><span className="map-tag"><MapPin size={14}/> خريطة فعلية</span><span className="map-muted">اختر النقاط مباشرة</span></div>
@@ -612,7 +647,7 @@ export default function App() {
           </section>}
           <section className="panel offer-card"><span className="section-kicker">العروض الواردة</span><h2>{offers.length} عرض متاح</h2>
             {!offers.length && <p className="muted">ستظهر هنا الطلبات الحقيقية الموجهة إليك عندما تكون معتمداً ومتصلًا وقريبًا من نقطة الانطلاق.</p>}
-            {offers.map(offer => <div className="offer-row" key={offer.offer_id}><b>{offer.pickup_label} ← {offer.destination_label}</b><small>{categoryNames[offer.category] ?? offer.category} · {money(offer.proposed_amount_minor, offer.currency_code)}</small><small>ينتهي {time(offer.expires_at)}</small><div className="offer-buttons"><button className="primary-btn" disabled={busy} onClick={() => acceptOffer(offer.offer_id)}>قبول</button><button className="secondary-btn" disabled={busy} onClick={() => declineOffer(offer.offer_id)}>رفض</button></div></div>)}
+            {offers.map(offer => <div className="offer-row" key={offer.offer_id}><b>{offer.pickup_label} ← {offer.destination_label}</b><small>{categoryNames[offer.category] ?? offer.category} · {money(offer.proposed_amount_minor, offer.currency_code)}</small><small>ينتهي {time(offer.expires_at)}</small><label className="field-label">أو اقترح سعراً بالدينار<input className="wide-input" type="number" min="1" value={counterAmounts[offer.offer_id] ?? ''} onChange={e => setCounterAmounts(v => ({...v,[offer.offer_id]:e.target.value}))}/></label><div className="offer-buttons"><button className="primary-btn" disabled={busy} onClick={() => acceptOffer(offer.offer_id)}>قبول السعر</button><button className="secondary-btn" disabled={busy} onClick={() => beginFareNegotiation(offer.offer_id)}>إرسال عرض مضاد</button><button className="secondary-btn" disabled={busy} onClick={() => declineOffer(offer.offer_id)}>رفض</button></div></div>)}
           </section>
         </div>}
 
