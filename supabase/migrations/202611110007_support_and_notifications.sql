@@ -218,11 +218,40 @@ drop trigger if exists ride_offers_notify_driver on public.ride_offers;
 create trigger ride_offers_notify_driver after insert on public.ride_offers
 for each row execute function public.notify_driver_offer();
 
+create or replace function public.notify_safety_report_status_change()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $
+begin
+  if new.status is not distinct from old.status then return new; end if;
+  insert into public.user_notifications(user_id, notification_type, title, body)
+  values(
+    new.reporter_user_id,
+    'safety_report',
+    'تحديث على بلاغ السلامة',
+    case new.status
+      when 'investigating' then 'بدأ فريق الإدارة مراجعة بلاغك.'
+      when 'resolved' then 'تمت معالجة بلاغ السلامة.'
+      when 'closed' then 'أُغلق بلاغ السلامة بعد المراجعة.'
+      else 'تم تحديث حالة بلاغ السلامة.'
+    end
+  );
+  return new;
+end;
+$;
+drop trigger if exists safety_reports_notify_status_change on public.safety_reports;
+create trigger safety_reports_notify_status_change
+after update of status on public.safety_reports
+for each row execute function public.notify_safety_report_status_change();
+
 revoke all on function public.create_support_ticket(text,text,uuid) from public, anon;
 revoke all on function public.admin_list_support_tickets() from public, anon, authenticated;
 revoke all on function public.admin_reply_support_ticket(uuid,text,text) from public, anon, authenticated;
 revoke all on function public.notify_ride_status_change() from public, anon, authenticated;
 revoke all on function public.notify_driver_offer() from public, anon, authenticated;
+revoke all on function public.notify_safety_report_status_change() from public, anon, authenticated;
 grant execute on function public.create_support_ticket(text,text,uuid) to authenticated;
 grant execute on function public.admin_list_support_tickets() to authenticated;
 grant execute on function public.admin_reply_support_ticket(uuid,text,text) to authenticated;
@@ -239,6 +268,9 @@ begin
     end if;
     if not exists (select 1 from pg_publication_tables where pubname='supabase_realtime' and schemaname='public' and tablename='support_tickets') then
       alter publication supabase_realtime add table public.support_tickets;
+    end if;
+    if not exists (select 1 from pg_publication_tables where pubname='supabase_realtime' and schemaname='public' and tablename='safety_reports') then
+      alter publication supabase_realtime add table public.safety_reports;
     end if;
   end if;
 end;
