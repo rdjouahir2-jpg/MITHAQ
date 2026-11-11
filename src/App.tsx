@@ -244,7 +244,7 @@ export default function App() {
       if (commissionResult.error) throw commissionResult.error
       const policyRow = Array.isArray(commissionResult.data) ? commissionResult.data[0] : commissionResult.data
       setCommissionBps(policyRow?.commission_bps ?? null)
-      setCommissionProvisional(Boolean(policyRow?.is_provisional))
+      setCommissionProvisional(policyRow ? Boolean(policyRow.is_provisional) : true)
       if (policyRow?.commission_bps !== undefined) setCommissionDraft(String(Number(policyRow.commission_bps) / 100))
       setAdminFinancials((financeResult.data ?? []) as AdminFinancial[])
       setAdminPayouts((payoutResult.data ?? []) as AdminPayout[])
@@ -710,6 +710,7 @@ export default function App() {
   })
 
   const updatePlatformCommission = () => run(async () => {
+    if (!commissionDraft.trim()) throw new Error('أدخل نسبة العمولة التي وافقت عليها الإدارة أولاً.')
     const percent = Number(commissionDraft)
     const basisPoints = Math.round(percent * 100)
     if (!Number.isFinite(percent) || percent < 0 || percent > 30 || !Number.isSafeInteger(basisPoints)) {
@@ -977,7 +978,7 @@ export default function App() {
 
           <section className="panel admin-note">
             <span className="section-kicker">المالية والعمولات</span><h2>سياسة العمولة</h2>
-            <p className="muted">النسبة الحالية: {commissionBps === null ? 'غير مهيأة' : (commissionBps / 100).toFixed(2) + '%'}{commissionProvisional ? ' · نسبة تجريبية مؤقتة' : ' · سياسة معتمدة إدارياً'} · لا تُطبق التغييرات إلا على الرحلات الجديدة المكتملة.</p>
+            <p className="muted">النسبة الحالية: {commissionBps === null ? 'غير مهيأة — يلزم تحديدها قبل إكمال الرحلات' : (commissionBps / 100).toFixed(2) + (commissionProvisional ? '% · نسبة تجريبية مؤقتة' : '% · سياسة معتمدة إدارياً')} · لا تُطبق التغييرات إلا على الرحلات الجديدة المكتملة.</p>
             <label className="field-label">العمولة الجديدة (%)<input className="wide-input" type="number" min="0" max="30" step="0.1" value={commissionDraft} onChange={e => setCommissionDraft(e.target.value)} /></label>
             <button className="primary-btn" disabled={busy} onClick={updatePlatformCommission}>حفظ نسبة العمولة</button>
             <h3>سجل أجور الرحلات ({adminFinancials.length})</h3>
