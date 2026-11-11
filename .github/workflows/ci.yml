@@ -32,5 +32,5 @@ jobs:
         run: |
           deno check --config supabase/functions/deno.json supabase/functions/create-fare-quote/index.ts
           deno check --config supabase/functions/deno.json supabase/functions/dispatch-maintenance/index.ts
-      - name: Test ride-domain invariants
-        run: deno test tests/ride.test.ts
+      - name: Test ride and fare-negotiation domain invariants
+        run: deno test tests/ride.test.ts tests/negotiation.test.ts
