@@ -32,10 +32,14 @@ These are historical CI/deployment results, not a fresh verification of this com
 - [x] Deterministic ride lifecycle invariants and tests.
 - [x] **New:** bounded fare-negotiation domain model with integer-DZD bounds, alternating passenger/driver counter-offers, a configurable 1–5 round cap, expiry, accept, and reject transitions.
 - [x] **New:** CI test command includes the negotiation invariant suite.
+- [x] **New:** transactional Supabase migration for participant-scoped fare negotiation records and guarded start/respond/read RPCs.
+- [x] **New:** server validates driver ownership and eligibility, passenger/driver turn alternation, fare bounds (70–130% of original quote), five-round cap, expiry, and atomic ride assignment on acceptance.
+- [x] **New:** pgTAP security-contract assertions for negotiation RLS, blocked direct writes, and RPC grants.
+- [x] **New:** typed frontend API wrapper for the negotiation RPCs.
 
 ## Important limitation on fare negotiation
 
-The new negotiation module is tested domain logic only. It is not yet connected to the passenger/driver screens or transactional Supabase RPCs. Do not offer it to real users until the database migration, server-side authorization, concurrency/expiry handling, UI, and integration tests are implemented.
+The domain rules, transactional database migration/RPCs, participant read policy, typed client API, and database security assertions are now present in the feature branch. The passenger/driver screens are not yet connected to these RPCs. The migration has not been applied to the hosted Supabase project, and the new pgTAP suite has not yet passed in CI. Do not offer negotiation to real users until UI integration, successful database migration tests, and two-account integration tests are complete.
 
 ## Remaining before a two-phone closed test
 
