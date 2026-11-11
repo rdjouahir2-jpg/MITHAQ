@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select extensions.plan(28);
+select extensions.plan(29);
 
 select extensions.has_table('public','ride_financials','completed rides have a financial snapshot');
 select extensions.has_table('public','driver_ledger_entries','driver balances use an append-only ledger');
@@ -9,7 +9,7 @@ select extensions.ok((select relrowsecurity from pg_class where oid='public.ride
 select extensions.ok((select relrowsecurity from pg_class where oid='public.driver_ledger_entries'::regclass),'driver ledger uses RLS');
 select extensions.ok((select relrowsecurity from pg_class where oid='public.driver_payout_requests'::regclass),'payout requests use RLS');
 select extensions.ok(not has_function_privilege('anon','public.request_driver_payout(bigint)','EXECUTE'),'anonymous users cannot request payouts');
-select extensions.is((select commission_bps from public.platform_commission_policies where is_active),1000,'test commission policy is provisional 10 percent');
+select extensions.is((select count(*)::integer from public.platform_commission_policies where is_active),0,'no commission rate is silently assumed before admin approval');
 
 insert into auth.users (id,aud,role,email,created_at,updated_at)
 values
@@ -26,6 +26,10 @@ where id in (
 insert into public.user_roles(user_id,role)
 values('51000000-0000-4000-8000-000000000001','admin')
 on conflict do nothing;
+select set_config('request.jwt.claim.sub','51000000-0000-4000-8000-000000000001',true);
+select public.admin_set_platform_commission(1000);
+select extensions.is((select commission_bps from public.platform_commission_policies where is_active),1000,'admin-configured 10 percent commission rate is active');
+
 insert into public.driver_profiles(id,user_id,onboarding_status,availability_status)
 values('52000000-0000-4000-8000-000000000001','51000000-0000-4000-8000-000000000002','approved','offline')
 on conflict (id) do nothing;
