@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select extensions.plan(32);
+select extensions.plan(28);
 
 select extensions.has_table('public','ride_financials','completed rides have a financial snapshot');
 select extensions.has_table('public','driver_ledger_entries','driver balances use an append-only ledger');
