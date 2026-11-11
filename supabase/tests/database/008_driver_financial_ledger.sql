@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select extensions.plan(29);
+select extensions.plan(30);
 
 select extensions.has_table('public','ride_financials','completed rides have a financial snapshot');
 select extensions.has_table('public','driver_ledger_entries','driver balances use an append-only ledger');
@@ -44,6 +44,10 @@ select extensions.is((select count(*)::integer from public.ride_financials),1,'c
 select extensions.is((select gross_fare_minor from public.ride_financials where ride_id='53000000-0000-4000-8000-000000000001'),18750::bigint,'gross fare is snapshotted');
 select extensions.is((select commission_minor from public.ride_financials where ride_id='53000000-0000-4000-8000-000000000001'),1875::bigint,'commission is calculated in integer minor units');
 select extensions.is((select driver_net_minor from public.ride_financials where ride_id='53000000-0000-4000-8000-000000000001'),16875::bigint,'driver net equals gross less commission');
+select extensions.throws_ok(
+ $update public.ride_financials set gross_fare_minor=1 where ride_id='53000000-0000-4000-8000-000000000001'$,
+ '55000','financial_snapshot_is_immutable','completed ride fare and commission snapshots cannot be edited'
+);
 select extensions.is((select count(*)::integer from public.driver_ledger_entries),0,'no balance entry is created before collection is confirmed');
 
 select set_config('request.jwt.claim.sub','51000000-0000-4000-8000-000000000001',true);
