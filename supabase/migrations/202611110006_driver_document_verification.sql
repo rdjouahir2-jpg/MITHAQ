@@ -139,6 +139,7 @@ as $$
 declare
   v_user uuid := auth.uid();
   v_driver uuid;
+  v_availability text;
   v_id uuid;
 begin
   if v_user is null then
@@ -151,12 +152,15 @@ begin
     raise exception 'invalid_driver_document' using errcode = '22023';
   end if;
 
-  select d.id into v_driver
+  select d.id, d.availability_status into v_driver, v_availability
   from public.driver_profiles d
-  where d.user_id = v_user and d.onboarding_status in ('pending','under_review','rejected')
+  where d.user_id = v_user and d.onboarding_status <> 'suspended'
   for update;
   if v_driver is null then
     raise exception 'driver_application_required' using errcode = '42501';
+  end if;
+  if v_availability = 'busy' then
+    raise exception 'active_trip_prevents_document_replacement' using errcode = 'P0001';
   end if;
 
   if p_object_path !~ (
@@ -286,6 +290,15 @@ begin
   if not found then
     raise exception 'driver_document_not_found' using errcode = 'P0002';
   end if;
+  if v_old_status <> 'pending' then
+    raise exception 'document_already_reviewed' using errcode = 'P0001';
+  end if;
+  if p_decision = 'approved' and exists (
+    select 1 from public.driver_documents d where d.id = p_document_id
+      and d.expires_on is not null and d.expires_on < current_date
+  ) then
+    raise exception 'document_expired' using errcode = '22023';
+  end if;
   if exists (
     select 1 from public.driver_documents newer
     where newer.driver_id = v_driver_id
@@ -320,6 +333,56 @@ grant execute on function public.register_my_driver_document(text,text,date) to 
 grant execute on function public.get_my_driver_documents() to authenticated;
 grant execute on function public.admin_list_driver_documents() to authenticated;
 grant execute on function public.admin_review_driver_document(uuid,text,text) to authenticated;
+
+
+-- Expired or replaced documents immediately remove online eligibility.
+-- This gate is checked again at the critical write boundaries, not only in the UI.
+create or replace function public.enforce_current_driver_documents()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $
+declare
+  v_driver_id uuid;
+begin
+  if tg_table_name = 'driver_profiles' then
+    v_driver_id := new.id;
+    if new.availability_status = 'online'
+       and not public.driver_documents_complete(v_driver_id) then
+      raise exception 'required_driver_documents_not_approved' using errcode = '23514';
+    end if;
+  elsif tg_table_name = 'driver_locations' then
+    v_driver_id := new.driver_id;
+    if not public.driver_documents_complete(v_driver_id) then
+      raise exception 'required_driver_documents_not_approved' using errcode = '23514';
+    end if;
+  elsif tg_table_name = 'ride_offers' then
+    v_driver_id := new.driver_id;
+    if new.status = 'accepted'
+       and not public.driver_documents_complete(v_driver_id) then
+      raise exception 'required_driver_documents_not_approved' using errcode = '23514';
+    end if;
+  end if;
+  return new;
+end;
+$;
+revoke all on function public.enforce_current_driver_documents() from public, anon, authenticated;
+
+drop trigger if exists driver_profile_documents_before_online on public.driver_profiles;
+create trigger driver_profile_documents_before_online
+before update of availability_status on public.driver_profiles
+for each row execute function public.enforce_current_driver_documents();
+
+drop trigger if exists driver_location_documents_gate on public.driver_locations;
+create trigger driver_location_documents_gate
+before insert or update on public.driver_locations
+for each row execute function public.enforce_current_driver_documents();
+
+drop trigger if exists ride_offer_documents_gate on public.ride_offers;
+create trigger ride_offer_documents_gate
+before update of status on public.ride_offers
+for each row execute function public.enforce_current_driver_documents();
 
 -- Existing approved drivers must not retain access without the new evidence gate.
 update public.driver_profiles d
