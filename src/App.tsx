@@ -51,6 +51,9 @@ type AdminDriver = {
   vehicle_model: string | null; vehicle_year: number | null; vehicle_color: string | null
   seat_capacity: number | null; vehicle_status: string | null
 }
+type DriverDocument = { document_id: string; driver_id?: string; user_id?: string; display_name?: string; document_type: string; object_path?: string; status: string; expires_on: string | null; uploaded_at: string; reviewed_at: string | null; review_reason: string | null }
+const documentNames: Record<string, string> = { identity_card: 'بطاقة الهوية', driving_license: 'رخصة السياقة', vehicle_registration: 'البطاقة الرمادية', insurance: 'التأمين' }
+const requiredDocumentTypes = ['identity_card','driving_license','vehicle_registration','insurance']
 type Tracking = {
   ride_id: string; ride_status: string; pickup_latitude: number; pickup_longitude: number
   destination_latitude: number; destination_longitude: number
@@ -84,6 +87,12 @@ export default function App() {
   const [counterAmounts, setCounterAmounts] = useState<Record<string, string>>({})
   const [accounts, setAccounts] = useState<AdminAccount[]>([])
   const [drivers, setDrivers] = useState<AdminDriver[]>([])
+  const [driverDocuments, setDriverDocuments] = useState<DriverDocument[]>([])
+  const [myDriverDocuments, setMyDriverDocuments] = useState<DriverDocument[]>([])
+  const [documentType, setDocumentType] = useState('identity_card')
+  const [documentFile, setDocumentFile] = useState<File | null>(null)
+  const [documentExpiry, setDocumentExpiry] = useState('')
+  const [documentPreviewUrl, setDocumentPreviewUrl] = useState('')
   const [adminRides, setAdminRides] = useState<AdminRide[]>([])
   const [safetyReports, setSafetyReports] = useState<SafetyReport[]>([])
   const [reportDescription, setReportDescription] = useState('')
@@ -149,14 +158,17 @@ export default function App() {
     setNegotiations(negotiationRows)
 
     if (driverResult.data) {
-      const [offersResult, driverRidesResult, earningsResult] = await Promise.all([
+      const [offersResult, driverRidesResult, earningsResult, documentsResult] = await Promise.all([
         supabase.rpc('get_my_driver_offers'),
         supabase.rpc('get_my_driver_ride_details', { p_limit: 20 }),
         supabase.rpc('get_my_driver_earnings', { p_limit: 20 }),
+        supabase.rpc('get_my_driver_documents'),
       ])
       if (offersResult.error) throw offersResult.error
       if (driverRidesResult.error) throw driverRidesResult.error
       if (earningsResult.error) throw earningsResult.error
+      if (documentsResult.error) throw documentsResult.error
+      setMyDriverDocuments((documentsResult.data ?? []) as DriverDocument[])
       setOffers((offersResult.data ?? []) as Offer[])
       setDriverRides((driverRidesResult.data ?? []) as Ride[])
       setDriverEarnings((earningsResult.data ?? []) as DriverEarning[])
@@ -164,19 +176,23 @@ export default function App() {
       setOffers([])
       setDriverRides([])
       setDriverEarnings([])
+      setMyDriverDocuments([])
     }
 
     if (nextRoles.includes('admin')) {
-      const [accountResult, driverQueueResult, rideResult, safetyResult] = await Promise.all([
+      const [accountResult, driverQueueResult, rideResult, safetyResult, documentsResult] = await Promise.all([
         supabase.rpc('admin_list_pending_accounts'),
         supabase.rpc('admin_list_driver_applications'),
         supabase.rpc('admin_list_recent_rides'),
         supabase.rpc('admin_list_safety_reports'),
+        supabase.rpc('admin_list_driver_documents'),
       ])
       if (accountResult.error) throw accountResult.error
       if (driverQueueResult.error) throw driverQueueResult.error
       if (rideResult.error) throw rideResult.error
       if (safetyResult.error) throw safetyResult.error
+      if (documentsResult.error) throw documentsResult.error
+      setDriverDocuments((documentsResult.data ?? []) as DriverDocument[])
       setAdminRides((rideResult.data ?? []) as AdminRide[])
       setSafetyReports((safetyResult.data ?? []) as SafetyReport[])
       setAccounts((accountResult.data ?? []) as AdminAccount[])
@@ -184,6 +200,7 @@ export default function App() {
     } else {
       setAccounts([])
       setDrivers([])
+      setDriverDocuments([])
       setAdminRides([])
       setSafetyReports([])
     }
@@ -446,6 +463,50 @@ export default function App() {
     if (vehicleError) throw vehicleError
     await refreshData(user!.id)
     setNotice('تم إرسال بيانات المركبة للمراجعة. لن تتمكن من استقبال رحلات حتى اعتماد الحساب والمركبة.')
+  })
+
+  const submitDriverDocument = () => run(async () => {
+    if (!supabase || !user || !driverProfile) throw new Error('أنشئ طلب سائق أولاً.')
+    if (!documentFile) throw new Error('اختر ملف الوثيقة أولاً.')
+    if (documentFile.size > 10 * 1024 * 1024) throw new Error('الحد الأقصى لحجم الملف 10 ميغابايت.')
+    if (!['application/pdf','image/jpeg','image/png'].includes(documentFile.type)) throw new Error('الصيغ المقبولة PDF أو JPG أو PNG.')
+    if (documentType === 'insurance' && !documentExpiry) throw new Error('أدخل تاريخ انتهاء التأمين.')
+    if (documentExpiry && documentExpiry < new Date().toISOString().slice(0,10)) throw new Error('تاريخ الانتهاء يجب أن يكون في المستقبل.')
+    const extension = documentFile.type === 'application/pdf' ? 'pdf' : documentFile.type === 'image/png' ? 'png' : 'jpg'
+    const objectPath = user.id + '/' + driverProfile.id + '/' + documentType + '/' + crypto.randomUUID() + '.' + extension
+    const { error: uploadError } = await supabase.storage.from('driver-documents').upload(objectPath, documentFile, {
+      contentType: documentFile.type, cacheControl: '60', upsert: false,
+    })
+    if (uploadError) throw uploadError
+    const { error: registerError } = await supabase.rpc('register_my_driver_document', {
+      p_document_type: documentType, p_object_path: objectPath,
+      p_expires_on: documentExpiry || null,
+    })
+    if (registerError) {
+      await supabase.storage.from('driver-documents').remove([objectPath])
+      throw registerError
+    }
+    setDocumentFile(null)
+    setDocumentExpiry('')
+    await refreshData(user.id)
+    setNotice('تم رفع الوثيقة بأمان وإرسالها للمراجعة. لا يمكن تفعيل السائق قبل اعتماد الوثائق الأربع.')
+  })
+
+  const reviewDriverDocument = (documentId: string, decision: 'approved' | 'rejected') => run(async () => {
+    const { error: reviewError } = await supabase!.rpc('admin_review_driver_document', {
+      p_document_id: documentId, p_decision: decision,
+      p_reason: decision === 'approved' ? 'تمت مراجعة الوثيقة ومطابقة بياناتها.' : 'الوثيقة غير واضحة أو غير مطابقة؛ يرجى إعادة رفعها.',
+    })
+    if (reviewError) throw reviewError
+    await refreshData(user!.id)
+    setNotice(decision === 'approved' ? 'تم اعتماد الوثيقة.' : 'تم رفض الوثيقة.')
+  })
+
+  const previewDriverDocument = (objectPath: string) => run(async () => {
+    const { data, error: signedUrlError } = await supabase!.storage.from('driver-documents').createSignedUrl(objectPath, 60)
+    if (signedUrlError) throw signedUrlError
+    setDocumentPreviewUrl(data.signedUrl)
+    setNotice('رابط الوثيقة صالح لمدة 60 ثانية. افتحه من زر المعاينة.')
   })
 
   const acceptOffer = (offerId: string) => run(async () => {
