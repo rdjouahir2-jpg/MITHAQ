@@ -412,8 +412,7 @@ begin
   if new.status = 'accepted' and old.status is distinct from new.status then
     update public.fare_negotiations
       set status = 'rejected', updated_at = now()
-    where ride_id = new.id and status = 'open'
-      and driver_id is distinct from new.driver_id;
+    where ride_id = new.id and status = 'open';
   end if;
   return new;
 end;
