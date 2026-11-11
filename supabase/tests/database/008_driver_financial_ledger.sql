@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select extensions.plan(32);
+select extensions.plan(34);
 
 select extensions.has_table('public','ride_financials','completed rides have a financial snapshot');
 select extensions.has_table('public','driver_ledger_entries','driver balances use an append-only ledger');
@@ -70,6 +70,16 @@ select extensions.is((select status from public.driver_payout_requests limit 1),
 select extensions.is((select amount_minor from public.driver_ledger_entries where entry_type='payout_debit'),-16875::bigint,'paid payout creates a negative immutable ledger entry');
 select set_config('request.jwt.claim.sub','51000000-0000-4000-8000-000000000002',true);
 select extensions.is((select payout_available_minor from public.get_my_driver_financial_summary()),0::bigint,'paid payout reduces the available balance to zero');
+select extensions.throws_ok(
+ $select public.request_driver_payout(1)$,
+ '22023','payout_exceeds_available_balance','driver cannot request more than the remaining ledger balance'
+);
+select set_config('request.jwt.claim.sub','51000000-0000-4000-8000-000000000001',true);
+select extensions.throws_ok(
+ $select public.admin_process_driver_payout((select id from public.driver_payout_requests limit 1),'pay','TRANSFER-DUPLICATE','duplicate attempt')$,
+ 'P0002','payout_not_pending','a paid payout cannot be processed twice'
+);
+select set_config('request.jwt.claim.sub','51000000-0000-4000-8000-000000000002',true);
 select extensions.throws_ok(
  $$update public.driver_ledger_entries set description='tampered' where entry_type='payout_debit'$$,
  '55000','financial_ledger_is_immutable','ledger entries cannot be edited after posting'
