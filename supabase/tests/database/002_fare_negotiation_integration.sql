@@ -25,7 +25,7 @@ where id in (
 
 insert into public.driver_profiles (id, user_id, onboarding_status, availability_status)
 values
-  ('20000000-0000-4000-8000-000000000001','10000000-0000-4000-8000-000000000002','approved','online'),
+  ('20000000-0000-4000-8000-000000000001','10000000-0000-4000-8000-000000000002','approved','offline'),
   ('20000000-0000-4000-8000-000000000002','10000000-0000-4000-8000-000000000005','approved','busy')
 on conflict (id) do nothing;
 
@@ -34,6 +34,16 @@ values
   ('60000000-0000-4000-8000-000000000001','20000000-0000-4000-8000-000000000001','Test','Car','approved'),
   ('60000000-0000-4000-8000-000000000002','20000000-0000-4000-8000-000000000002','Test','Car','approved')
 on conflict (id) do nothing;
+
+insert into public.driver_documents(driver_id,user_id,document_type,object_path,status,expires_on)
+values
+ ('20000000-0000-4000-8000-000000000001','10000000-0000-4000-8000-000000000002','identity_card','test/driver1/identity','approved',null),
+ ('20000000-0000-4000-8000-000000000001','10000000-0000-4000-8000-000000000002','driving_license','test/driver1/license','approved',null),
+ ('20000000-0000-4000-8000-000000000001','10000000-0000-4000-8000-000000000002','vehicle_registration','test/driver1/registration','approved',null),
+ ('20000000-0000-4000-8000-000000000001','10000000-0000-4000-8000-000000000002','insurance','test/driver1/insurance','approved',current_date+30);
+
+update public.driver_profiles set availability_status='online'
+where id='20000000-0000-4000-8000-000000000001';
 
 insert into public.rides (
   id, passenger_id, driver_id, pickup_label, destination_label, status,
