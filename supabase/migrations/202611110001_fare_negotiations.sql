@@ -89,6 +89,7 @@ begin
   perform 1 from public.driver_profiles d
   where d.id = v_driver_id and d.user_id = v_user
     and d.onboarding_status = 'approved' and d.availability_status = 'online'
+    and exists (select 1 from public.profiles p where p.id = d.user_id and p.account_status = 'active')
     and exists (
       select 1 from public.vehicles v
       where v.driver_id = d.id and v.eligibility_status = 'approved'
@@ -230,6 +231,22 @@ begin
     raise exception 'negotiation_access_denied' using errcode = '42501';
   end if;
 
+  if v_user = v_passenger_id and not exists (
+    select 1 from public.profiles p where p.id = v_user and p.account_status = 'active'
+  ) then
+    raise exception 'active_passenger_account_required' using errcode = '42501';
+  end if;
+  if v_user = v_driver_user and (
+    not exists (select 1 from public.profiles p where p.id = v_user and p.account_status = 'active')
+    or not exists (
+      select 1 from public.driver_profiles d where d.id = v_driver_id
+        and d.onboarding_status = 'approved' and d.availability_status = 'online'
+    )
+    or not exists (select 1 from public.vehicles v where v.driver_id = v_driver_id and v.eligibility_status = 'approved')
+  ) then
+    raise exception 'approved_online_driver_required' using errcode = '42501';
+  end if;
+
   if p_action = 'counter' then
     if v_round >= v_max_rounds then
       raise exception 'maximum_negotiation_rounds_reached' using errcode = 'P0001';
@@ -341,7 +358,8 @@ security definer
 set search_path = ''
 as $$
   select n.id, n.ride_id, n.offer_id, n.driver_id, n.passenger_id,
-         n.status, n.quoted_amount_minor, n.current_amount_minor,
+         case when n.status = 'open' and n.expires_at <= now() then 'expired' else n.status end,
+         n.quoted_amount_minor, n.current_amount_minor,
          n.minimum_amount_minor, n.maximum_amount_minor,
          n.round_number, n.max_rounds, n.last_actor, n.expires_at,
          r.pickup_label, r.destination_label, r.currency_code
@@ -381,3 +399,27 @@ begin
   end if;
 end;
 $$;
+
+
+-- If a different driver wins the ride, close every remaining negotiation thread.
+create or replace function public.close_ride_negotiations_after_assignment()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if new.status = 'accepted' and old.status is distinct from new.status then
+    update public.fare_negotiations
+      set status = 'rejected', updated_at = now()
+    where ride_id = new.id and status = 'open'
+      and driver_id is distinct from new.driver_id;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists rides_close_fare_negotiations on public.rides;
+create trigger rides_close_fare_negotiations
+after update of status on public.rides
+for each row execute function public.close_ride_negotiations_after_assignment();
