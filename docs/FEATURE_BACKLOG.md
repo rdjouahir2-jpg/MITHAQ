@@ -18,6 +18,10 @@ This backlog distinguishes working source code from features that require hosted
 
 Source implementation is not proof of a hosted deployment. See `docs/IMPLEMENTATION_STATUS.md`.
 
+## Implemented in the current feature branch
+
+- Driver-only completed-trip earnings history with finalized gross fare and completion time; explicitly not represented as net pay or settlement.
+
 ## P1 — required before an invited field pilot
 
 1. **Driver document verification:** private storage for driving licence, vehicle registration, insurance, expiry dates, manual review, and automatic expiry suspension. Use short-lived signed URLs; never expose document buckets publicly.

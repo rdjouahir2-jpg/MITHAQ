@@ -44,6 +44,7 @@ type AdminAccount = { user_id: string; display_name: string; created_at: string 
 type AdminRide = { ride_id: string; passenger_name: string; driver_name: string | null; pickup_label: string; destination_label: string; ride_status: string; quoted_amount_minor: number; currency_code: string; requested_at: string; completed_at: string | null }
 type SafetyReport = { report_id: string; ride_id: string | null; reporter_name: string; category: string; severity: string; description: string; report_status: string; created_at: string }
 type RatingStatus = { has_rated: boolean; score: number | null; comment: string | null }
+type DriverEarning = { ride_id: string; pickup_label: string; destination_label: string; completed_at: string; gross_fare_minor: number; currency_code: string }
 type AdminDriver = {
   driver_id: string; user_id: string; display_name: string; account_status: string
   onboarding_status: string; vehicle_id: string | null; vehicle_make: string | null
@@ -77,6 +78,7 @@ export default function App() {
   const [driverProfile, setDriverProfile] = useState<DriverProfile | null>(null)
   const [passengerRides, setPassengerRides] = useState<Ride[]>([])
   const [driverRides, setDriverRides] = useState<Ride[]>([])
+  const [driverEarnings, setDriverEarnings] = useState<DriverEarning[]>([])
   const [offers, setOffers] = useState<Offer[]>([])
   const [negotiations, setNegotiations] = useState<FareNegotiation[]>([])
   const [counterAmounts, setCounterAmounts] = useState<Record<string, string>>({})
@@ -147,17 +149,21 @@ export default function App() {
     setNegotiations(negotiationRows)
 
     if (driverResult.data) {
-      const [offersResult, driverRidesResult] = await Promise.all([
+      const [offersResult, driverRidesResult, earningsResult] = await Promise.all([
         supabase.rpc('get_my_driver_offers'),
-        supabase.rpc('get_my_driver_ride_details', { p_limit: 5 }),
+        supabase.rpc('get_my_driver_ride_details', { p_limit: 20 }),
+        supabase.rpc('get_my_driver_earnings', { p_limit: 20 }),
       ])
       if (offersResult.error) throw offersResult.error
       if (driverRidesResult.error) throw driverRidesResult.error
+      if (earningsResult.error) throw earningsResult.error
       setOffers((offersResult.data ?? []) as Offer[])
       setDriverRides((driverRidesResult.data ?? []) as Ride[])
+      setDriverEarnings((earningsResult.data ?? []) as DriverEarning[])
     } else {
       setOffers([])
       setDriverRides([])
+      setDriverEarnings([])
     }
 
     if (nextRoles.includes('admin')) {
@@ -645,6 +651,15 @@ export default function App() {
             {driverRide.status === 'arrived' && <label className="auth-field">رمز الصعود من الراكب<input inputMode="numeric" maxLength={6} value={boardingPin} onChange={e => setBoardingPin(e.target.value.replace(/\D/g, '').slice(0,6))}/></label>}
             <button className="primary-btn" disabled={busy || (driverRide.status === 'arrived' && boardingPin.length !== 6)} onClick={() => updateDriverRide(driverRide)}>{driverRide.status === 'accepted' ? 'بدء التوجه للراكب' : driverRide.status === 'driver_arriving' ? 'تأكيد الوصول' : driverRide.status === 'arrived' ? 'تأكيد رمز الصعود' : driverRide.status === 'boarded' ? 'بدء الرحلة' : 'إنهاء الرحلة'}</button>
           </section>}
+          <section className="panel">
+            <span className="section-kicker">سجل الأرباح</span><h2>الرحلات المكتملة ({driverEarnings.length})</h2>
+            <p className="muted">المبالغ أدناه هي أجرة الرحلة الإجمالية المسجلة، وليست صافي مستحقاتك بعد العمولة أو التسوية.</p>
+            {!driverEarnings.length && <p className="muted">ستظهر هنا الرحلات المكتملة بعد تنفيذ أول رحلة.</p>}
+            {driverEarnings.map(item => <div className="admin-row" key={item.ride_id}>
+              <div><b>{money(item.gross_fare_minor, item.currency_code)}</b><small>{item.pickup_label} ← {item.destination_label}</small></div>
+              <small>{time(item.completed_at)}</small>
+            </div>)}
+          </section>
           <section className="panel offer-card"><span className="section-kicker">العروض الواردة</span><h2>{offers.length} عرض متاح</h2>
             {!offers.length && <p className="muted">ستظهر هنا الطلبات الحقيقية الموجهة إليك عندما تكون معتمداً ومتصلًا وقريبًا من نقطة الانطلاق.</p>}
             {offers.map(offer => <div className="offer-row" key={offer.offer_id}><b>{offer.pickup_label} ← {offer.destination_label}</b><small>{categoryNames[offer.category] ?? offer.category} · {money(offer.proposed_amount_minor, offer.currency_code)}</small><small>ينتهي {time(offer.expires_at)}</small><label className="field-label">أو اقترح سعراً بالدينار<input className="wide-input" type="number" min="1" value={counterAmounts[offer.offer_id] ?? ''} onChange={e => setCounterAmounts(v => ({...v,[offer.offer_id]:e.target.value}))}/></label><div className="offer-buttons"><button className="primary-btn" disabled={busy} onClick={() => acceptOffer(offer.offer_id)}>قبول السعر</button><button className="secondary-btn" disabled={busy} onClick={() => beginFareNegotiation(offer.offer_id)}>إرسال عرض مضاد</button><button className="secondary-btn" disabled={busy} onClick={() => declineOffer(offer.offer_id)}>رفض</button></div></div>)}

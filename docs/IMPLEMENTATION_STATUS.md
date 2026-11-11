@@ -87,3 +87,11 @@ Keep testing restricted to consenting invited users, with no payment and no publ
 - Rewrote participant RLS predicates to evaluate `auth.uid()` as an init-plan rather than per row.
 - Added covering indexes for 11 foreign keys identified by Supabase performance advisors.
 - Added pgTAP checks for these privilege and index guarantees. The migration remains branch-only until hosted rollout is explicitly approved.
+
+
+## Driver earnings read model (2026-11-11)
+
+- Added `get_my_driver_earnings(p_limit)` as a stable, authenticated, driver-scoped read function over completed rides with a finalized fare.
+- Added driver UI history for the latest 20 completed rides and their gross fare.
+- The UI explicitly distinguishes gross trip fare from net driver earnings; commission, adjustments, cash reconciliation, and settlement remain unimplemented.
+- Added pgTAP coverage for own-trip visibility, finalized fare integrity, cross-account isolation, and invalid limits. CI must pass before this is treated as verified.
