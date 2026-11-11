@@ -1,7 +1,7 @@
 -- MITHAQ transactional fare negotiation.
 -- Client writes are forbidden: every transition is validated in SECURITY DEFINER RPCs.
 create table public.fare_negotiations (
-  id uuid primary key default extensions.gen_random_uuid(),
+  id uuid primary key default gen_random_uuid(),
   ride_id uuid not null references public.rides(id) on delete cascade,
   offer_id uuid not null references public.ride_offers(id) on delete cascade,
   driver_id uuid not null references public.driver_profiles(id),
@@ -162,7 +162,7 @@ begin
   if v_user is null then
     raise exception 'authentication_required' using errcode = '28000';
   end if;
-  if p_action not in ('counter','accept','reject') then
+  if p_action is null or p_action not in ('counter','accept','reject') then
     raise exception 'invalid_negotiation_action' using errcode = '22023';
   end if;
   if p_action = 'counter' and (
@@ -213,6 +213,8 @@ begin
   if v_expiry <= now() then
     update public.fare_negotiations set status = 'expired', updated_at = now()
     where id = p_negotiation_id;
+    update public.ride_offers set status = 'expired', responded_at = now()
+    where id = v_offer_id and status = 'sent' and expires_at <= now();
     return 'expired';
   end if;
 
