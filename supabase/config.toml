@@ -30,3 +30,6 @@ verify_jwt = true
 
 [functions.dispatch-maintenance]
 verify_jwt = false
+
+[functions.driver-location]
+verify_jwt = false
