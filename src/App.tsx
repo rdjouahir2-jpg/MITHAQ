@@ -293,6 +293,24 @@ export default function App() {
     return () => { void client.removeChannel(channel) }
   }, [user, driverProfile?.id, refreshData])
 
+  // Reconcile the persisted inbox periodically in case a Realtime connection drops.
+  useEffect(() => {
+    if (!supabase || !user) return
+    let alive = true
+    const syncNotifications = async () => {
+      const { data, error: notificationError } = await supabase!
+        .from('user_notifications')
+        .select('id,notification_type,title,body,created_at,read_at')
+        .order('created_at', { ascending: false })
+        .limit(30)
+      if (!alive) return
+      if (notificationError) { setError(notificationError.message); return }
+      setNotifications((data ?? []) as UserNotification[])
+    }
+    const timer = window.setInterval(() => { void syncNotifications() }, 30000)
+    return () => { alive = false; window.clearInterval(timer) }
+  }, [user])
+
   useEffect(() => {
     if (!supabase || !user || !passengerRide || !activeStatuses.includes(passengerRide.status)) {
       setTracking(null)
