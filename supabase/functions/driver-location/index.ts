@@ -38,38 +38,38 @@ Deno.serve(async (req: Request) => {
   }
   if (req.method === "OPTIONS") {
     return new Response("ok", {
-      headers: { ...corsHeaders, "Access-Control-Allow-Origin": allowedOrigin },
+      headers: { ...corsHeaders, "Access-Control-Allow-Origin": responseOrigin },
     });
   }
   if (req.method !== "POST") return json(405, { error: "method_not_allowed" }, responseOrigin);
   const contentLength = Number(req.headers.get("content-length") ?? 0);
-  if (contentLength > 8_192) return json(413, { error: "request_too_large" }, allowedOrigin);
+  if (contentLength > 8_192) return json(413, { error: "request_too_large" }, responseOrigin);
   const contentType = req.headers.get("content-type")?.split(";")[0].trim().toLowerCase();
   if (contentType !== "application/json") {
-    return json(415, { error: "application_json_required" }, allowedOrigin);
+    return json(415, { error: "application_json_required" }, responseOrigin);
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
   const authorization = req.headers.get("Authorization");
-  if (!supabaseUrl || !anonKey) return json(503, { error: "server_configuration_incomplete" }, allowedOrigin);
+  if (!supabaseUrl || !anonKey) return json(503, { error: "server_configuration_incomplete" }, responseOrigin);
   if (!authorization?.startsWith("Bearer ") || authorization.length > 8_192) {
-    return json(401, { error: "authentication_required" }, allowedOrigin);
+    return json(401, { error: "authentication_required" }, responseOrigin);
   }
 
   try {
     const rawBody = await req.text();
     if (new TextEncoder().encode(rawBody).byteLength > 8_192) {
-      return json(413, { error: "request_too_large" }, allowedOrigin);
+      return json(413, { error: "request_too_large" }, responseOrigin);
     }
     let payload: unknown;
     try {
       payload = JSON.parse(rawBody);
     } catch {
-      return json(400, { error: "invalid_json" }, allowedOrigin);
+      return json(400, { error: "invalid_json" }, responseOrigin);
     }
     if (!isValidDriverLocationPayload(payload)) {
-      return json(422, { error: "invalid_or_simulated_location" }, allowedOrigin);
+      return json(422, { error: "invalid_or_simulated_location" }, responseOrigin);
     }
     const { latitude, longitude, accuracy, time: timestamp } = payload;
 
@@ -78,7 +78,7 @@ Deno.serve(async (req: Request) => {
       auth: { persistSession: false, autoRefreshToken: false },
     });
     const { data: authData, error: authError } = await userClient.auth.getUser();
-    if (authError || !authData.user) return json(401, { error: "invalid_session" }, allowedOrigin);
+    if (authError || !authData.user) return json(401, { error: "invalid_session" }, responseOrigin);
 
     const { error: locationError } = await userClient.rpc("record_driver_location", {
       p_latitude: latitude,
@@ -90,17 +90,17 @@ Deno.serve(async (req: Request) => {
       const message = String(locationError.message ?? "");
       if (message.includes("approved_online_driver_required") ||
           message.includes("active_account_required")) {
-        return json(403, { error: "driver_not_authorized_for_location_tracking" }, allowedOrigin);
+        return json(403, { error: "driver_not_authorized_for_location_tracking" }, responseOrigin);
       }
       if (message.includes("invalid_or_stale_location")) {
-        return json(422, { error: "stale_or_invalid_location" }, allowedOrigin);
+        return json(422, { error: "stale_or_invalid_location" }, responseOrigin);
       }
       throw locationError;
     }
 
-    return json(202, { accepted: true, received_at: new Date().toISOString() }, allowedOrigin);
+    return json(202, { accepted: true, received_at: new Date().toISOString() }, responseOrigin);
   } catch (error) {
     console.error("driver-location failed", error);
-    return json(500, { error: "location_update_failed" }, allowedOrigin);
+    return json(500, { error: "location_update_failed" }, responseOrigin);
   }
 });
