@@ -110,7 +110,7 @@ supabase functions deploy driver-location --no-verify-jwt
 Configure the required server-side secrets in Supabase/GitHub Actions:
 
 - SUPABASE_ACCESS_TOKEN and SUPABASE_DB_URL for the deployment workflow.
-- MITHAQ_CRON_SECRET for scheduled maintenance.
+- MITHAQ_CRON_SECRET as a GitHub repository secret; the deployment workflow maps it to the Supabase function runtime variable CRON_SECRET used by dispatch-maintenance.
 - Supabase runtime environment values SUPABASE_URL, SUPABASE_ANON_KEY and SUPABASE_SERVICE_ROLE_KEY are provided by Supabase; the service-role key must remain server-side.
 - ALLOWED_ORIGIN must be the GitHub Pages origin https://rdjouahir2-jpg.github.io (origin only, no path).
 - ROUTING_BASE_URL is an HTTPS OSRM-compatible endpoint.

@@ -1,6 +1,6 @@
 # MITHAQ Implementation Status
 
-Updated: 2026-11-11
+Updated: 2026-11-12
 
 ## Hosted test deployment — previously verified
 
@@ -43,24 +43,27 @@ These are historical CI/deployment results, not a fresh verification of this com
 
 ## Important limitation on fare negotiation
 
-The domain rules, transactional database migration/RPCs, participant read policy, typed client API, and database security assertions are now present in the feature branch. The migration has not been applied to the hosted Supabase project. The database pgTAP workflow has not yet completed successfully for this migration; runs were cancelled while the branch was still receiving commits. The UI and API are committed, but must be exercised with two real test accounts after the migration is applied to a disposable/test database. Do not offer negotiation to real users until database tests and two-account integration tests pass.
+The domain rules, transactional database migration/RPCs, participant read policy, typed client API, and database security assertions are present in the feature branch. The full local Supabase pgTAP suite now passes (8 files, 108 tests), but these migrations have not been applied to the hosted Supabase project. The UI and API still require two-account integration testing after an approved test deployment.
 
 ## Remaining before a two-phone closed test
 
+- [ ] Obtain explicit approval for the manual deployment of the 31 migrations and three Edge Functions to the dedicated test Supabase project.
 - [ ] Bootstrap the first administrator account using the one-time SQL procedure in `BACKEND_SETUP.md`.
 - [ ] Verify hosted PostGIS extension, Realtime publication, and expected function grants.
 - [ ] Configure one small, clearly labelled non-commercial test service area and fare policy.
 - [ ] Configure and verify the private maintenance schedule.
 - [ ] Verify account activation, driver approval, vehicle approval, and the full two-phone ride lifecycle.
 - [ ] Test quote expiry/single-use, dispatch, offer expiry/decline/retry, concurrent acceptance, boarding PIN, participant-only tracking, and unauthorized access denial.
-- [ ] Test on two Android phones over mobile data, including GPS permission and reconnection.
+- [ ] Complete the Android debug APK build and download its GitHub Actions artifact.
+- [ ] Test on two Android phones about 500 metres apart over mobile data, including background GPS, screen lock, permission handling and reconnection.
 
 ## Not yet implemented or independently verified for production
 
 - [ ] Connect fare negotiation to secure transactional database functions and both user interfaces.
 - [x] Private driver document upload and admin review for identity, driving licence, vehicle registration, and insurance (new branch migration; awaiting CI verification).
 - [ ] Phone verification and abuse controls.
-- [ ] Native Android driver app, background GPS, push notifications, and battery/permission handling.
+- [x] Capacitor Android shell and native background GPS integration are committed; APK compilation and physical-device verification remain pending.
+- [ ] Firebase/FCM push delivery, OEM battery reliability and durable offline GPS queue.
 - [ ] Payment and driver settlement after legal and financial validation.
 - [ ] Independent security review, monitoring, backup/restore drills, load testing, and incident response.
 - [ ] Written Algerian legal/transport clearance, appropriate insurance, privacy/consumer terms, and staffed support/emergency operations.
@@ -119,3 +122,14 @@ Keep testing restricted to consenting invited users, with no payment and no publ
 - Online activation and fresh GPS writes are blocked when required documents are incomplete or expired; accepting an existing offer is also guarded.
 - Added pgTAP coverage for missing documents, approval denial, latest-upload supersession, admin queue authorization, and successful approval after review.
 - The new migration is branch-only. It has not been applied to the hosted Supabase project. CI must pass before this is treated as verified.
+
+
+## Latest engineering verification (2026-11-12)
+
+- Commit 54908562f8ace5b332ed0da8c7aaaa872080f5db passed the frontend build, Deno type checks for the Edge Functions, and the ride/negotiation/native-location domain test command.
+- The local Supabase migration replay and pgTAP suite passed: 8 SQL test files, 108 assertions, all successful.
+- Native Android integration is now present in code: Capacitor 8.6.0, Capgo Background Geolocation 8.6.0, foreground location service, persistent notification, explicit driver consent, native authenticated POST to driver-location, token-header refresh while the app is active, and stop on Offline/sign-out.
+- The first Android APK build reached project generation and plugin sync but failed in Android SDK setup because the action received an unsupported package-list format. The workflow has been corrected to pass a space-separated SDK package list; the new run must finish before an APK can be claimed.
+- Native location uploads are best-effort and have no durable offline queue. Firebase/FCM push is not integrated. No physical Android phone test has been performed.
+- The hosted test project still has its original 23 migrations. The eight new migrations and driver-location function have not been deployed. The deployment workflow remains manual and requires the explicit DEPLOY input.
+- No merge to main, hosted database migration or backend deployment is implied by these source and CI checks.
