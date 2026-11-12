@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
-import { Capacitor } from '@capacitor/core'
 import {
   CarFront, CircleHelp, LogOut,
   MapPin, Navigation, RefreshCw, ShieldCheck, UserRound, Wallet,
@@ -282,6 +281,7 @@ export default function App() {
       setUser(session?.user ?? null)
       setScreen('passenger')
       if (!session) {
+        void stopDriverBackgroundTracking().catch(() => undefined)
         setProfile(null); setRoles([]); setDriverProfile(null)
         setPassengerRides([]); setDriverRides([]); setOffers([]); setNegotiations([])
         setDriverEarnings([]); setDriverDocuments([]); setMyDriverDocuments([]); setAccounts([])
@@ -393,8 +393,8 @@ export default function App() {
   }, [user, ratingRide?.id, screen])
 
   useEffect(() => {
-    const active = Boolean(driverProfile && ['online', 'busy'].includes(driverProfile.availability_status))
-    if (!supabase) return
+    if (!driverProfile || !supabase) return
+    const active = ['online', 'busy'].includes(driverProfile.availability_status)
 
     if (isNativeAndroid()) {
       if (!active) {
