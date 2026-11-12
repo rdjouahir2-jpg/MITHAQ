@@ -17,10 +17,14 @@
     "react-dom": "19.3.1",
     "lucide-react": "1.71.0",
     "@supabase/supabase-js": "2.119.0",
-    "maplibre-gl": "6.17.0"
+    "maplibre-gl": "6.17.0",
+    "@capacitor/core": "8.6.0",
+    "@capgo/background-geolocation": "8.6.0"
   },
   "devDependencies": {
     "@types/react": "19.3.0",
-    "@types/react-dom": "19.3.0"
+    "@types/react-dom": "19.3.0",
+    "@capacitor/android": "8.6.0",
+    "@capacitor/cli": "8.6.0"
   }
 }
