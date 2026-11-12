@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
+import { Capacitor } from '@capacitor/core'
 import {
   CarFront, CircleHelp, LogOut,
   MapPin, Navigation, RefreshCw, ShieldCheck, UserRound, Wallet,
 } from 'lucide-react'
 import MapPicker, { type GeoPoint } from './components/MapPicker'
 import { isSupabaseConfigured, supabase } from './lib/supabase'
+import { isNativeAndroid, refreshDriverBackgroundTrackingToken, startDriverBackgroundTracking, stopDriverBackgroundTracking } from './lib/backgroundLocation'
 import { createFareQuote, recordDriverLocation, requestRide, setDriverAvailability } from './lib/rideApi'
 import { getMyFareNegotiations, respondFareNegotiation, startFareNegotiation, type FareNegotiation } from './lib/fareNegotiationApi'
 
@@ -391,7 +393,42 @@ export default function App() {
   }, [user, ratingRide?.id, screen])
 
   useEffect(() => {
-    if (!driverProfile || !['online','busy'].includes(driverProfile.availability_status)) return
+    const active = Boolean(driverProfile && ['online', 'busy'].includes(driverProfile.availability_status))
+    if (!supabase) return
+
+    if (isNativeAndroid()) {
+      if (!active) {
+        void stopDriverBackgroundTracking().catch(err => setError(err instanceof Error ? err.message : 'تعذر إيقاف تتبع الموقع.'))
+        return
+      }
+      let alive = true
+      const ensureNativeTracking = async () => {
+        const { data, error: sessionError } = await supabase!.auth.getSession()
+        if (sessionError) throw sessionError
+        if (!data.session?.access_token) throw new Error('انتهت جلسة السائق. سجّل الدخول مجددًا لتشغيل التتبع.')
+        await startDriverBackgroundTracking(data.session.access_token, {
+          onError: message => { if (alive) setError(message) },
+        })
+      }
+      void ensureNativeTracking().catch(err => {
+        if (alive) setError(err instanceof Error ? err.message : 'تعذر تشغيل GPS في الخلفية.')
+      })
+      const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+        if (!session) {
+          void stopDriverBackgroundTracking().catch(err => setError(err instanceof Error ? err.message : 'تعذر إيقاف تتبع الموقع.'))
+          return
+        }
+        void refreshDriverBackgroundTrackingToken(session.access_token).catch(err => {
+          setError(err instanceof Error ? err.message : 'تعذر تحديث صلاحية إرسال الموقع.')
+        })
+      })
+      return () => {
+        alive = false
+        authListener.subscription.unsubscribe()
+      }
+    }
+
+    if (!active) return
     if (!navigator.geolocation) {
       setError('هذا المتصفح لا يدعم تحديد الموقع؛ لا يمكن إدخالك في المطابقة.')
       return
@@ -412,7 +449,6 @@ export default function App() {
     const watchId = navigator.geolocation.watchPosition(sendLocation, geoError => {
       setError(geoError.code === 1 ? 'يجب السماح بالموقع حتى تظهر لك الطلبات القريبة.' : 'تعذر تحديث موقعك.')
     }, { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 })
-    // A foreground heartbeat refreshes the fix even when the vehicle is stationary.
     const heartbeat = window.setInterval(() => {
       navigator.geolocation.getCurrentPosition(sendLocation, () => undefined, {
         enableHighAccuracy: true, maximumAge: 0, timeout: 15000,
@@ -449,6 +485,7 @@ export default function App() {
   })
 
   const signOut = () => run(async () => {
+    await stopDriverBackgroundTracking()
     const { error: signOutError } = await supabase!.auth.signOut()
     if (signOutError) throw signOutError
   })
@@ -520,18 +557,32 @@ export default function App() {
           accuracyM: position.coords.accuracy,
           recordedAt: new Date(position.timestamp).toISOString(),
         })
+        if (isNativeAndroid()) {
+          const { data, error: sessionError } = await supabase!.auth.getSession()
+          if (sessionError) throw sessionError
+          if (!data.session?.access_token) throw new Error('انتهت جلسة الدخول. أعد تسجيل الدخول.')
+          await startDriverBackgroundTracking(data.session.access_token, {
+            onError: message => setError(message),
+          })
+        }
       } catch (locationError) {
+        await stopDriverBackgroundTracking().catch(() => undefined)
         await setDriverAvailability(false)
         throw locationError
       }
       setDriverOnline(true)
       setDriverProfile(current => current ? { ...current, availability_status: 'online' } : current)
       await refreshData(user!.id)
-      setNotice('أصبحت متاحًا. سيُحدّث الهاتف موقعك أثناء بقاء التطبيق مفتوحًا.')
+      setNotice(isNativeAndroid()
+        ? 'أصبحت متاحًا. يعمل تتبع GPS في الخلفية مع إشعار ظاهر ويمكنه الاستمرار عند قفل الشاشة.'
+        : 'أصبحت متاحًا. سيُحدّث المتصفح موقعك أثناء بقاء التطبيق مفتوحًا.')
     } else {
+      let stopError: unknown = null
+      try { await stopDriverBackgroundTracking() } catch (err) { stopError = err }
       await setDriverAvailability(false)
       await refreshData(user!.id)
-      setNotice('أصبحت غير متاح.')
+      if (stopError) throw stopError
+      setNotice('أصبحت غير متاح، وتم إيقاف تتبع الموقع.')
     }
   })
 
