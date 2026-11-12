@@ -2,7 +2,7 @@
 -- Run with: supabase test db
 begin;
 create extension if not exists pgtap with schema extensions;
-select extensions.plan(25);
+select extensions.plan(33);
 
 select extensions.has_table('public', 'driver_locations', 'driver location table exists');
 select extensions.ok(
@@ -102,5 +102,41 @@ select extensions.ok(
   (select prosecdef from pg_proc where oid = 'public.clear_driver_location_on_offline()'::regprocedure),
   'location cleanup trigger runs with the required server privilege'
 );
+
+select extensions.ok(
+  (select relrowsecurity from pg_class where oid = 'public.fare_negotiations'::regclass),
+  'fare negotiations has row-level security enabled'
+);
+select extensions.ok(
+  has_table_privilege('authenticated', 'public.fare_negotiations', 'SELECT'),
+  'authenticated participants can read negotiation rows subject to participant policy'
+);
+select extensions.ok(
+  not has_table_privilege('authenticated', 'public.fare_negotiations', 'INSERT'),
+  'clients cannot create negotiations directly'
+);
+select extensions.ok(
+  not has_table_privilege('authenticated', 'public.fare_negotiations', 'UPDATE'),
+  'clients cannot alter negotiation amounts or state directly'
+);
+select extensions.ok(
+  not has_table_privilege('authenticated', 'public.fare_negotiations', 'DELETE'),
+  'clients cannot delete negotiation audit history'
+);
+select extensions.ok(
+  has_function_privilege('authenticated', 'public.start_fare_negotiation(uuid,bigint)', 'EXECUTE'),
+  'eligible drivers can start a counter-offer through the guarded RPC'
+);
+select extensions.ok(
+  has_function_privilege('authenticated', 'public.respond_fare_negotiation(uuid,text,bigint)', 'EXECUTE')
+  and has_function_privilege('authenticated', 'public.get_my_fare_negotiations()', 'EXECUTE'),
+  'authenticated participants can respond and read their own negotiation threads'
+);
+select extensions.ok(
+  not has_function_privilege('anon', 'public.respond_fare_negotiation(uuid,text,bigint)', 'EXECUTE')
+  and not has_function_privilege('anon', 'public.start_fare_negotiation(uuid,bigint)', 'EXECUTE'),
+  'anonymous users cannot access fare negotiation commands'
+);
+
 select * from extensions.finish();
 rollback;

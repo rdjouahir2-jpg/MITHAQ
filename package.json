@@ -7,20 +7,25 @@
     "dev": "vite --host 0.0.0.0",
     "build": "tsc -b && vite build",
     "preview": "vite preview --host 0.0.0.0",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "build:android": "tsc -b && vite build --mode capacitor"
   },
   "dependencies": {
-    "@vitejs/plugin-react": "latest",
-    "vite": "latest",
-    "typescript": "latest",
-    "react": "latest",
-    "react-dom": "latest",
-    "lucide-react": "latest",
-    "@supabase/supabase-js": "latest",
-    "maplibre-gl": "^6.17.0"
+    "@vitejs/plugin-react": "6.3.0",
+    "vite": "8.3.7",
+    "typescript": "7.0.2",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "lucide-react": "1.71.0",
+    "@supabase/supabase-js": "2.119.0",
+    "maplibre-gl": "6.17.0",
+    "@capacitor/core": "8.6.0",
+    "@capgo/background-geolocation": "8.6.0"
   },
   "devDependencies": {
-    "@types/react": "latest",
-    "@types/react-dom": "latest"
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@capacitor/android": "8.6.0",
+    "@capacitor/cli": "8.6.0"
   }
 }

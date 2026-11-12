@@ -28,9 +28,9 @@ jobs:
       - uses: supabase/setup-cli@v1
         with:
           version: latest
-      - name: Start local Supabase stack and apply migrations
+      - name: Start database-only Supabase stack and apply migrations
         run: |
-          if ! supabase start > /tmp/mithaq-supabase-start.log 2>&1; then
+          if ! supabase start -x realtime,storage-api,imgproxy,kong,mailpit,postgrest,postgres-meta,studio,edge-runtime,logflare,vector,supavisor > /tmp/mithaq-supabase-start.log 2>&1; then
             sed -E 's/sb_secret_[A-Za-z0-9_-]+/[REDACTED]/g; s/sb_publishable_[A-Za-z0-9_-]+/[REDACTED]/g' /tmp/mithaq-supabase-start.log | tail -n 100
             exit 1
           fi

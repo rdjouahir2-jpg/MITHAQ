@@ -18,6 +18,11 @@ This backlog distinguishes working source code from features that require hosted
 
 Source implementation is not proof of a hosted deployment. See `docs/IMPLEMENTATION_STATUS.md`.
 
+## Implemented in the current feature branch
+
+- Driver-only completed-trip earnings history with finalized gross fare and completion time; explicitly not represented as net pay or settlement.
+- Participant-authorized pre-boarding cancellation with reason audit, offer withdrawal, negotiation closure, and driver offline handling. No cancellation fee is charged.
+
 ## P1 — required before an invited field pilot
 
 1. **Driver document verification:** private storage for driving licence, vehicle registration, insurance, expiry dates, manual review, and automatic expiry suspension. Use short-lived signed URLs; never expose document buckets publicly.
@@ -31,9 +36,12 @@ Source implementation is not proof of a hosted deployment. See `docs/IMPLEMENTAT
 9. **Driver earnings ledger:** trip gross amount, platform commission, adjustments, cash collection, and transparent statements. Do not label gross fare as driver net earnings.
 10. **Operational resilience:** monitoring, alerting, backups, restore drills, idempotency, rate limits, abuse detection, and load tests.
 
+## Implemented in the current feature branch
+
+- Bounded driver/passenger fare negotiation with alternating turns, expiry, accept/reject, and atomic ride assignment. This is CI-tested locally but not yet applied to the hosted database or validated with two live test accounts.
+
 ## P2 — only after the core service is reliable
 
-- Passenger-proposed fares and bounded counter-offers.
 - Scheduled rides and driver commitment/late-cancellation rules.
 - Intercity service with separate operating boundaries, fares, and driver eligibility.
 - Additional vehicle classes and accessibility preferences.

@@ -1,0 +1,14 @@
+{
+  "appId": "dz.mithaq.app",
+  "appName": "MITHAQ",
+  "webDir": "dist",
+  "android": {
+    "useLegacyBridge": true,
+    "resolveServiceWorkerRequests": false
+  },
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": true
+    }
+  }
+}
