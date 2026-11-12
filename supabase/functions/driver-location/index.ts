@@ -23,17 +23,25 @@ Deno.serve(async (req: Request) => {
   const configuredOrigin = Deno.env.get("ALLOWED_ORIGIN");
   const requestOrigin = req.headers.get("origin");
   const allowedOrigin = configuredOrigin ?? "null";
+  const acceptedOrigins = new Set([
+    configuredOrigin,
+    "capacitor://localhost",
+    "http://localhost",
+  ].filter((value): value is string => Boolean(value)));
+  const responseOrigin = requestOrigin && acceptedOrigins.has(requestOrigin)
+    ? requestOrigin
+    : allowedOrigin;
 
   if (!configuredOrigin) return json(503, { error: "allowed_origin_not_configured" }, "null");
-  if (requestOrigin && requestOrigin !== configuredOrigin) {
-    return json(403, { error: "origin_not_allowed" }, configuredOrigin);
+  if (requestOrigin && !acceptedOrigins.has(requestOrigin)) {
+    return json(403, { error: "origin_not_allowed" }, responseOrigin);
   }
   if (req.method === "OPTIONS") {
     return new Response("ok", {
       headers: { ...corsHeaders, "Access-Control-Allow-Origin": allowedOrigin },
     });
   }
-  if (req.method !== "POST") return json(405, { error: "method_not_allowed" }, allowedOrigin);
+  if (req.method !== "POST") return json(405, { error: "method_not_allowed" }, responseOrigin);
   const contentLength = Number(req.headers.get("content-length") ?? 0);
   if (contentLength > 8_192) return json(413, { error: "request_too_large" }, allowedOrigin);
   const contentType = req.headers.get("content-type")?.split(";")[0].trim().toLowerCase();
