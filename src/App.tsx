@@ -540,6 +540,7 @@ export default function App() {
 
   const toggleOnline = () => run(async () => {
     if (!driverOnline) {
+      if (isNativeAndroid() && !window.confirm('عند تفعيل التوفر، يرسل MITHAQ موقعك لتحديد الرحلات القريبة ويظهر إشعار تتبع دائم. أثناء الرحلة لا يرى موقعك إلا الراكب المرتبط بها. يمكنك إيقاف التتبع بإيقاف التوفر. هل توافق؟')) return
       if (!navigator.geolocation) throw new Error('تحديد الموقع غير مدعوم في هذا المتصفح.')
       const position = await new Promise<GeolocationPosition>((resolve, reject) => {
         navigator.geolocation.getCurrentPosition(resolve, reject, {
