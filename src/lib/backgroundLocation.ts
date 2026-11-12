@@ -53,7 +53,7 @@ export async function startDriverBackgroundTracking(
       backgroundMessage: 'موقعك يُشارك مع الراكب المرتبط برحلتك أو مع نظام المطابقة أثناء تفعيل التوفر.',
       requestPermissions: true,
       stale: false,
-      distanceFilter: 15,
+      distanceFilter: 0,
       minIntervalMs: 15000,
       url: locationEndpoint,
       headers,
