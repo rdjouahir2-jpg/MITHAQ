@@ -62,7 +62,7 @@ The domain rules, transactional database migration/RPCs, participant read policy
 - [ ] Connect fare negotiation to secure transactional database functions and both user interfaces.
 - [x] Private driver document upload and admin review for identity, driving licence, vehicle registration, and insurance (new branch migration; awaiting CI verification).
 - [ ] Phone verification and abuse controls.
-- [x] Capacitor Android shell and native background GPS integration are committed; APK compilation and physical-device verification remain pending.
+- [x] Capacitor Android shell and native background GPS integration are committed; a debug APK now builds successfully in GitHub Actions. Physical-device verification remains pending.
 - [ ] Firebase/FCM push delivery, OEM battery reliability and durable offline GPS queue.
 - [ ] Payment and driver settlement after legal and financial validation.
 - [ ] Independent security review, monitoring, backup/restore drills, load testing, and incident response.
@@ -129,7 +129,7 @@ Keep testing restricted to consenting invited users, with no payment and no publ
 - Commit 54908562f8ace5b332ed0da8c7aaaa872080f5db passed the frontend build, Deno type checks for the Edge Functions, and the ride/negotiation/native-location domain test command.
 - The local Supabase migration replay and pgTAP suite passed: 8 SQL test files, 108 assertions, all successful.
 - Native Android integration is now present in code: Capacitor 8.6.0, Capgo Background Geolocation 8.6.0, foreground location service, persistent notification, explicit driver consent, native authenticated POST to driver-location, token-header refresh while the app is active, and stop on Offline/sign-out.
-- The first Android APK build reached project generation and plugin sync but failed in Android SDK setup because the action received an unsupported package-list format. The workflow has been corrected to pass a space-separated SDK package list; the new run must finish before an APK can be claimed.
+- The Android APK build passed on commit 04be8e848299de502f9ad172bd54ca4487816e8b. GitHub Actions run 43185346783 published artifact mithaq-android-debug-apk (artifact ID 13928451304; SHA-256 digest 95f6620884dd93b3a9805a94650a2a5cb64b7d4dfc44616c9e87413b66c625e7).
 - Native location uploads are best-effort and have no durable offline queue. Firebase/FCM push is not integrated. No physical Android phone test has been performed.
 - The hosted test project still has its original 23 migrations. The eight new migrations and driver-location function have not been deployed. The deployment workflow remains manual and requires the explicit DEPLOY input.
 - No merge to main, hosted database migration or backend deployment is implied by these source and CI checks.
