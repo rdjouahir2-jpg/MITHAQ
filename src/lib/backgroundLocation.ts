@@ -46,12 +46,22 @@ export async function startDriverBackgroundTracking(
     return true
   }
 
+  const permissions = await BackgroundGeolocation.requestPermissions({
+    permissions: ['location', 'notification'],
+  })
+  if (permissions.location !== 'granted') {
+    throw new Error('يجب السماح بالوصول إلى الموقع لتفعيل السائق.')
+  }
+  if (permissions.notification && permissions.notification !== 'granted') {
+    throw new Error('اسمح بإشعار MITHAQ الدائم حتى يعمل تتبع الموقع في الخلفية.')
+  }
+
   activeToken = accessToken
   activeStart = BackgroundGeolocation.start(
     {
       backgroundTitle: 'MITHAQ · تتبع السائق',
       backgroundMessage: 'موقعك يُشارك مع الراكب المرتبط برحلتك أو مع نظام المطابقة أثناء تفعيل التوفر.',
-      requestPermissions: true,
+      requestPermissions: false,
       stale: false,
       distanceFilter: 0,
       minIntervalMs: 15000,
