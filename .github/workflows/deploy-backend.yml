@@ -84,3 +84,6 @@ jobs:
 
       - name: Deploy dispatch maintenance function
         run: supabase functions deploy dispatch-maintenance --project-ref bzoubheoooszhzajzsur --yes --no-verify-jwt
+
+      - name: Deploy authenticated native driver-location ingestion
+        run: supabase functions deploy driver-location --project-ref bzoubheoooszhzajzsur --yes --no-verify-jwt
