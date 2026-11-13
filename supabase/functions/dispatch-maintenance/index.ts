@@ -32,6 +32,21 @@ Deno.serve(async (req: Request) => {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
+  const leaseHolder = crypto.randomUUID();
+  const leaseName = "dispatch-maintenance";
+  const { data: leaseAcquired, error: leaseError } = await admin.rpc("acquire_maintenance_lease", {
+    p_name: leaseName,
+    p_holder: leaseHolder,
+    p_ttl_seconds: 300,
+  });
+  if (leaseError) {
+    console.error("dispatch-maintenance lease acquisition failed", leaseError);
+    return Response.json({ error: "maintenance_lease_unavailable" }, { status: 503 });
+  }
+  if (leaseAcquired !== true) {
+    return Response.json({ error: "maintenance_already_running" }, { status: 409 });
+  }
+
   try {
     const now = new Date().toISOString();
     const { data: offeredRides, error: offeredError } = await admin
@@ -93,8 +108,24 @@ Deno.serve(async (req: Request) => {
       rides_retried: dispatchAttempts,
       new_driver_offers: newOffers,
     });
+    const { error: attemptPurgeError } = await admin.rpc("purge_quote_attempts", {
+      p_older_than_seconds: 3600,
+    });
+    if (attemptPurgeError) throw attemptPurgeError;
+
+    return Response.json({
+      expired_offers: expiredCount,
+      rides_retried: dispatchAttempts,
+      new_driver_offers: newOffers,
+    });
   } catch (error) {
     console.error("dispatch-maintenance failed", error);
     return Response.json({ error: "maintenance_failed" }, { status: 500 });
+  } finally {
+    const { error: releaseError } = await admin.rpc("release_maintenance_lease", {
+      p_name: leaseName,
+      p_holder: leaseHolder,
+    });
+    if (releaseError) console.error("dispatch-maintenance lease release failed", releaseError);
   }
 });
