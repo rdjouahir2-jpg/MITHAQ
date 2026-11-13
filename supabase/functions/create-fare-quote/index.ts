@@ -6,6 +6,13 @@ const corsHeaders = {
   "Content-Type": "application/json",
 };
 
+const MAX_BODY_BYTES = 16_384;
+const QUOTE_ATTEMPT_LIMIT = 10;
+const QUOTE_ATTEMPT_WINDOW_SECONDS = 60;
+
+class BodyTooLargeError extends Error {}
+class InvalidJsonError extends Error {}
+
 function json(status: number, body: Record<string, unknown>, origin = "*") {
   return new Response(JSON.stringify(body), {
     status,
@@ -15,6 +22,41 @@ function json(status: number, body: Record<string, unknown>, origin = "*") {
 
 function validCoordinate(value: unknown, min: number, max: number): value is number {
   return typeof value === "number" && Number.isFinite(value) && value >= min && value <= max;
+}
+
+// Reads at most maxBytes from the request stream. The declared content-length
+// is only an early hint: chunked requests have none, so the stream itself is
+// counted.
+async function readJsonLimited(req: Request, maxBytes: number): Promise<unknown> {
+  const declared = Number(req.headers.get("content-length") ?? 0);
+  if (Number.isFinite(declared) && declared > maxBytes) throw new BodyTooLargeError();
+  if (!req.body) throw new InvalidJsonError();
+
+  const reader = req.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel();
+      throw new BodyTooLargeError();
+    }
+    chunks.push(value);
+  }
+
+  const merged = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    merged.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  try {
+    return JSON.parse(new TextDecoder().decode(merged));
+  } catch {
+    throw new InvalidJsonError();
+  }
 }
 
 Deno.serve(async (req: Request) => {
@@ -36,10 +78,6 @@ Deno.serve(async (req: Request) => {
   if (req.method !== "POST") {
     return json(405, { error: "method_not_allowed" }, allowedOrigin);
   }
-  const requestBytes = Number(req.headers.get("content-length") ?? 0);
-  if (requestBytes > 16_384) {
-    return json(413, { error: "request_too_large" }, allowedOrigin);
-  }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
@@ -50,30 +88,12 @@ Deno.serve(async (req: Request) => {
   }
 
   const authorization = req.headers.get("Authorization");
-  if (!authorization?.startsWith("Bearer ")) {
+  if (!authorization?.startsWith("Bearer ") || authorization.length <= "Bearer ".length) {
     return json(401, { error: "authentication_required" }, allowedOrigin);
   }
 
   try {
-    const payload = await req.json();
-    const pickup = payload?.pickup;
-    const destination = payload?.destination;
-    const category = payload?.category;
-    const pickupLabel = typeof payload?.pickup_label === "string" ? payload.pickup_label.trim() : "";
-    const destinationLabel = typeof payload?.destination_label === "string" ? payload.destination_label.trim() : "";
-
-    if (
-      !validCoordinate(pickup?.latitude, -90, 90) ||
-      !validCoordinate(pickup?.longitude, -180, 180) ||
-      !validCoordinate(destination?.latitude, -90, 90) ||
-      !validCoordinate(destination?.longitude, -180, 180) ||
-      pickupLabel.length < 2 || pickupLabel.length > 180 ||
-      destinationLabel.length < 2 || destinationLabel.length > 180 ||
-      !["economy", "comfort", "family"].includes(category)
-    ) {
-      return json(400, { error: "invalid_quote_request" }, allowedOrigin);
-    }
-
+    // Authenticate before reading the body.
     const userClient = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authorization } },
       auth: { persistSession: false, autoRefreshToken: false },
@@ -98,16 +118,44 @@ Deno.serve(async (req: Request) => {
       return json(403, { error: "active_account_required" }, allowedOrigin);
     }
 
-    const oneMinuteAgo = new Date(Date.now() - 60_000).toISOString();
-    const { count: recentQuoteCount, error: rateLimitError } = await admin
-      .from("fare_quotes")
-      .select("id", { count: "exact", head: true })
-      .eq("passenger_id", userResult.user.id)
-      .gte("created_at", oneMinuteAgo);
+    // Atomic, per-user limit. Every attempt that gets this far is recorded,
+    // including ones that later fail validation, routing or area checks.
+    const { data: attemptAllowed, error: attemptError } = await admin.rpc("consume_quote_attempt", {
+      p_user_id: userResult.user.id,
+      p_limit: QUOTE_ATTEMPT_LIMIT,
+      p_window_seconds: QUOTE_ATTEMPT_WINDOW_SECONDS,
+    });
+    if (attemptError) throw attemptError;
+    if (attemptAllowed !== true) {
+      return json(429, { error: "quote_rate_limit_exceeded", retry_after_seconds: 10 }, allowedOrigin);
+    }
 
-    if (rateLimitError) throw rateLimitError;
-    if ((recentQuoteCount ?? 0) >= 10) {
-      return json(429, { error: "quote_rate_limit_exceeded" }, allowedOrigin);
+    let payload: any;
+    try {
+      payload = await readJsonLimited(req, MAX_BODY_BYTES);
+    } catch (error) {
+      if (error instanceof BodyTooLargeError) {
+        return json(413, { error: "request_too_large" }, allowedOrigin);
+      }
+      return json(400, { error: "invalid_quote_request" }, allowedOrigin);
+    }
+
+    const pickup = payload?.pickup;
+    const destination = payload?.destination;
+    const category = payload?.category;
+    const pickupLabel = typeof payload?.pickup_label === "string" ? payload.pickup_label.trim() : "";
+    const destinationLabel = typeof payload?.destination_label === "string" ? payload.destination_label.trim() : "";
+
+    if (
+      !validCoordinate(pickup?.latitude, -90, 90) ||
+      !validCoordinate(pickup?.longitude, -180, 180) ||
+      !validCoordinate(destination?.latitude, -90, 90) ||
+      !validCoordinate(destination?.longitude, -180, 180) ||
+      pickupLabel.length < 2 || pickupLabel.length > 180 ||
+      destinationLabel.length < 2 || destinationLabel.length > 180 ||
+      !["economy", "comfort", "family"].includes(category)
+    ) {
+      return json(400, { error: "invalid_quote_request" }, allowedOrigin);
     }
 
     const { data: policyRows, error: policyError } = await admin.rpc(
@@ -131,6 +179,20 @@ Deno.serve(async (req: Request) => {
     const policy = Array.isArray(policyRows) ? policyRows[0] : null;
     if (!policy) {
       return json(503, { error: "no_active_area_fare_policy" }, allowedOrigin);
+    }
+
+    // Category pricing policy: the category fare is the economy fare scaled by
+    // a server-side multiplier (basis points). Checked before the routing slot
+    // is claimed so a missing configuration never burns routing capacity.
+    const { data: multiplierRow, error: multiplierError } = await admin
+      .from("fare_category_multipliers")
+      .select("multiplier_bp")
+      .eq("category", category)
+      .maybeSingle();
+    if (multiplierError) throw multiplierError;
+    const multiplierBp = Number(multiplierRow?.multiplier_bp);
+    if (!Number.isSafeInteger(multiplierBp) || multiplierBp < 10_000 || multiplierBp > 30_000) {
+      return json(503, { error: "category_pricing_not_configured" }, allowedOrigin);
     }
 
     const { data: routeSlot, error: routeSlotError } = await admin.rpc("claim_routing_request_slot");
@@ -218,10 +280,15 @@ Deno.serve(async (req: Request) => {
       return json(503, { error: "invalid_fare_policy" }, allowedOrigin);
     }
 
-    const amountMinor = Math.max(
+    const economyAmountMinor = Math.max(
       minimum,
       base + Math.ceil(distanceM / 1000) * perKm + Math.ceil(durationS / 60) * perMinute,
     );
+    if (!Number.isSafeInteger(economyAmountMinor) || economyAmountMinor > 100_000_000) {
+      return json(422, { error: "fare_out_of_supported_range" }, allowedOrigin);
+    }
+    // Integer arithmetic only; rounds up to the next whole minor unit.
+    const amountMinor = Math.ceil((economyAmountMinor * multiplierBp) / 10_000);
     if (!Number.isSafeInteger(amountMinor) || amountMinor > 100_000_000) {
       return json(422, { error: "fare_out_of_supported_range" }, allowedOrigin);
     }
@@ -238,6 +305,7 @@ Deno.serve(async (req: Request) => {
         destination_latitude: destination.latitude,
         destination_longitude: destination.longitude,
         category,
+        category_multiplier_bp: multiplierBp,
         amount_minor: amountMinor,
         currency_code: policy.currency_code,
         route_distance_m: distanceM,
